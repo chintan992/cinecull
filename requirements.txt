@@ -1,0 +1,12 @@
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+watchdog>=3.0.0
+opencv-python>=4.7.0.72
+mediapipe>=0.10.0
+rawpy>=0.18.0
+pillow>=9.5.0
+numpy>=1.24.0
+python-multipart>=0.0.7
+exifread>=3.0.0
+scikit-learn>=1.2.0
+onnxruntime>=1.15.0

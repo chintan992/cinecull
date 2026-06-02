@@ -1,0 +1,60 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Python test & cache files
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Project configuration & databases (local environment specific)
+config.json
+photo_culler_db.json
+
+# Model weights (exclude large binaries from Git)
+models/*.bin
+models/*.onnx
+models/*.pt
+models/*.pth
+models/*.h5
+models/*.ckpt
+models/*.pb
+models/*.weights
+models/*.tflite
+
+# Frontend dependencies and builds
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/lerna-debug.log*
