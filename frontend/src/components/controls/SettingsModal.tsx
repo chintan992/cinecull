@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Cpu, Download, Check, AlertTriangle, Zap, Eye, Layers, HardDrive, RefreshCw, Info } from 'lucide-react';
+import { X, Cpu, Download, Check, AlertTriangle, Zap, Eye, Layers, HardDrive, RefreshCw, Info, Settings } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/utils';
@@ -206,7 +206,6 @@ export function SettingsModal() {
   const setActiveModels = useUIStore((s) => s.setActiveModels);
   const setAvailableModels = useUIStore((s) => s.setAvailableModels);
   const addToast = useUIStore((s) => s.addToast);
-  const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set());
 
   async function refreshModels() {
     try {
@@ -235,19 +234,12 @@ export function SettingsModal() {
   }
 
   async function handleDownloadModel(modelId: string) {
-    setDownloadingModels((prev) => new Set(prev).add(modelId));
     try {
       await api.downloadModel(modelId);
       addToast({ message: `Downloaded ${modelId}`, type: 'success' });
       await refreshModels();
     } catch (err: any) {
       addToast({ message: err.message || 'Failed to download model', type: 'error' });
-    } finally {
-      setDownloadingModels((prev) => {
-        const next = new Set(prev);
-        next.delete(modelId);
-        return next;
-      });
     }
   }
 
