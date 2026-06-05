@@ -8,6 +8,7 @@ import { LoupeView } from './components/viewer/LoupeView';
 import { CompareView } from './components/viewer/CompareView';
 import { CommandPalette } from './components/controls/CommandPalette';
 import { FolderPicker } from './components/controls/FolderPicker';
+import { SettingsModal } from './components/controls/SettingsModal';
 import { ToastContainer } from './components/ui/Toast';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useApi } from './hooks/useApi';
@@ -81,6 +82,7 @@ export default function App() {
 
       <CommandPalette />
       <FolderPicker />
+      <SettingsModal />
       <ToastContainer />
     </>
   );

@@ -1,4 +1,4 @@
-import { Aperture, Folder, Wifi, WifiOff, Command, LayoutGrid, Image, Columns3, Play, Pause } from 'lucide-react';
+import { Aperture, Folder, Wifi, WifiOff, Command, LayoutGrid, Image, Columns3, Play, Pause, Settings } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/utils';
@@ -17,6 +17,7 @@ export function TopBar() {
   const setViewMode = useUIStore((s) => s.setViewMode);
   const toggleCommandPalette = useUIStore((s) => s.toggleCommandPalette);
   const setFolderPickerOpen = useUIStore((s) => s.setFolderPickerOpen);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const analysisPaused = useUIStore((s) => s.analysisPaused);
   const analysisQueueLen = useUIStore((s) => s.analysisQueueLen);
   const setAnalysisPaused = useUIStore((s) => s.setAnalysisPaused);
@@ -113,6 +114,15 @@ export function TopBar() {
           className="px-3 py-1.5 rounded-lg bg-chrome-850 hover:bg-chrome-800 border border-chrome-800/50 text-xs font-medium text-chrome-300 transition-colors"
         >
           Set Folder
+        </button>
+
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-chrome-850 hover:bg-chrome-800 border border-chrome-800/50 text-xs font-medium text-chrome-300 transition-colors"
+          title="AI Model Settings"
+        >
+          <Settings size={12} />
+          <span className="hidden lg:inline">Models</span>
         </button>
 
         <button

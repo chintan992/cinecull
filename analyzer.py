@@ -9,6 +9,13 @@ import math
 import json
 import threading
 
+from gpu_detector import GPUDetector
+from model_registry import (
+    MODEL_REGISTRY, check_compatibility, get_fallback_chain,
+    get_default_for_tier, get_model_info
+)
+from model_downloader import downloader as model_downloader
+
 # Try optional dependencies
 try:
     import mediapipe as mp
@@ -134,7 +141,7 @@ def custom_dbscan(embeddings, eps, min_samples=1):
 # ==========================================
 class PhotoAnalyzer:
     def __init__(self):
-        self.engine = "standard"  # "standard" or "yolov8"
+        self.engine = "standard"
         self.yolo_model = None
         self.mp_face_mesh = None
         self.face_mesh = None
@@ -143,8 +150,15 @@ class PhotoAnalyzer:
         self.dinov2_session = None
         self.clip_session = None
         self.nima_session = None
+        self.gpu_info = {}
+        self.active_models = {
+            "aesthetic": "nima",
+            "embedding": "dinov2_small",
+            "face_detection": "mediapipe"
+        }
+        self._dynamic_sessions = {}
+        self._model_failures = {}
 
-        # Setup MediaPipe Face Mesh
         if HAS_MEDIAPIPE:
             try:
                 self.mp_face_mesh = mp.solutions.face_mesh
@@ -161,50 +175,145 @@ class PhotoAnalyzer:
         else:
             print("[WARN] MediaPipe Face Mesh NOT available. Facial analysis will use basic cascading.")
 
-        # Stage 0: Hardware Probing Engine & Setup
         self._probe_hardware()
 
     def _probe_hardware(self):
-        """
-        Probes execution providers and prioritizes hardware acceleration.
-        Decouples initialization from underlying hardware.
-        """
         if not HAS_ORT:
             print("[WARN] ONNX Runtime is not available. Deep learning stages will use fallback math heuristics.")
             self.ort_providers = ["CPUExecutionProvider"]
+        else:
+            available = ort.get_available_providers()
+            print(f"[INFO] Available ONNX Runtime execution providers: {available}")
+
+            prioritized = []
+            if "CUDAExecutionProvider" in available:
+                cuda_options = {
+                    "arena_extend_strategy": "kNextPowerOfTwo",
+                    "cudnn_conv_algo_search": "HEURISTIC",
+                    "gpu_mem_limit": str(4 * 1024 * 1024 * 1024)
+                }
+                prioritized.append(("CUDAExecutionProvider", cuda_options))
+            if "DmlExecutionProvider" in available:
+                prioritized.append("DmlExecutionProvider")
+            if "CoreMLExecutionProvider" in available:
+                prioritized.append("CoreMLExecutionProvider")
+            prioritized.append("CPUExecutionProvider")
+            self.ort_providers = prioritized
+            print(f"[INFO] Configured ONNX Runtime providers list: {self.ort_providers}")
+
+        self.gpu_info = GPUDetector.detect()
+        tier = self.gpu_info.get("tier", "low")
+        print(f"[INFO] GPU: {self.gpu_info.get('gpu_name', 'Unknown')} | VRAM: {self.gpu_info.get('vram_mb', 0)}MB | Tier: {tier}")
+
+        defaults = get_default_for_tier(tier)
+        self.active_models.update(defaults)
+        print(f"[INFO] Default models for tier '{tier}': {self.active_models}")
+
+        self._init_onnx_models()
+
+    def get_hardware_info(self):
+        return self.gpu_info
+
+    def get_active_models(self):
+        return dict(self.active_models)
+
+    def select_model(self, task: str, model_id: str) -> dict:
+        if task not in MODEL_REGISTRY:
+            return {"status": "error", "message": f"Unknown task: {task}"}
+        if model_id not in MODEL_REGISTRY[task]:
+            return {"status": "error", "message": f"Unknown model: {model_id}"}
+
+        compat = check_compatibility(model_id, task, self.gpu_info)
+        if not compat["compatible"]:
+            return {"status": "error", "message": compat["message"]}
+
+        info = MODEL_REGISTRY[task][model_id]
+        if info.get("file") and not model_downloader.is_downloaded(model_id):
+            print(f"[INFO] Model {model_id} not downloaded. Downloading...")
+            success = model_downloader.download_model(model_id)
+            if not success:
+                return {"status": "error", "message": f"Failed to download model {model_id}"}
+
+        self._load_model_session(task, model_id)
+        old_model = self.active_models[task]
+        self.active_models[task] = model_id
+        self._model_failures.pop(model_id, None)
+
+        print(f"[INFO] Switched {task}: {old_model} -> {model_id}")
+        return {
+            "status": "success",
+            "task": task,
+            "old_model": old_model,
+            "new_model": model_id,
+            "warning": "Model changed. Re-analysis required for existing photos."
+        }
+
+    def _load_model_session(self, task: str, model_id: str):
+        info = MODEL_REGISTRY[task][model_id]
+        filename = info.get("file")
+        if not filename:
             return
 
-        available = ort.get_available_providers()
-        print(f"[INFO] Available ONNX Runtime execution providers: {available}")
+        model_path = model_downloader.get_model_path(model_id)
+        if not model_path:
+            models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+            model_path = os.path.join(models_dir, filename)
 
-        prioritized = []
-        
-        # 1. CUDA
-        if "CUDAExecutionProvider" in available:
-            # Configure CUDA memory and kernel compilation options
-            cuda_options = {
-                "arena_extend_strategy": "kNextPowerOfTwo",
-                "cudnn_conv_algo_search": "HEURISTIC",
-                "gpu_mem_limit": str(4 * 1024 * 1024 * 1024)  # Limit to 4GB to avoid system starvation
-            }
-            prioritized.append(("CUDAExecutionProvider", cuda_options))
+        if not os.path.exists(model_path) or not HAS_ORT:
+            return
 
-        # 2. DirectML (Windows)
-        if "DmlExecutionProvider" in available:
-            prioritized.append("DmlExecutionProvider")
+        try:
+            session = ort.InferenceSession(model_path, providers=self.ort_providers)
+            self._dynamic_sessions[f"{task}_{model_id}"] = session
+            print(f"[INFO] Loaded model session: {task}/{model_id}")
+        except Exception as e:
+            print(f"[WARN] Failed to load model {task}/{model_id}: {e}")
 
-        # 3. CoreML (macOS Neural Engine)
-        if "CoreMLExecutionProvider" in available:
-            prioritized.append("CoreMLExecutionProvider")
+    def _get_session(self, task: str, model_id: str):
+        key = f"{task}_{model_id}"
+        if key in self._dynamic_sessions:
+            return self._dynamic_sessions[key]
 
-        # 4. CPU (Fallback)
-        prioritized.append("CPUExecutionProvider")
+        if task == "embedding" and model_id == "dinov2_small":
+            return self.dinov2_session
+        if task == "aesthetic" and model_id == "clip_aesthetic":
+            return self.clip_session
+        if task == "aesthetic" and model_id == "nima":
+            return self.nima_session
 
-        self.ort_providers = prioritized
-        print(f"[INFO] Configured ONNX Runtime providers list: {self.ort_providers}")
+        info = MODEL_REGISTRY.get(task, {}).get(model_id)
+        if info and info.get("file"):
+            self._load_model_session(task, model_id)
+            return self._dynamic_sessions.get(key)
+        return None
 
-        # Initialize models lazily when first needed
-        self._init_onnx_models()
+    def _run_with_fallback(self, task: str, func, *args, **kwargs):
+        current = self.active_models.get(task)
+        if current and current not in self._model_failures.get(task, []):
+            try:
+                return func(current, *args, **kwargs)
+            except Exception as e:
+                print(f"[WARN] Model {task}/{current} failed: {e}. Trying fallback...")
+                if task not in self._model_failures:
+                    self._model_failures[task] = []
+                self._model_failures[task].append(current)
+
+        chain = get_fallback_chain(task, current or "")
+        for fallback_id in chain:
+            if fallback_id in self._model_failures.get(task, []):
+                continue
+            try:
+                result = func(fallback_id, *args, **kwargs)
+                print(f"[INFO] Fallback succeeded: {task}/{fallback_id}")
+                self.active_models[task] = fallback_id
+                return result
+            except Exception as e:
+                print(f"[WARN] Fallback {task}/{fallback_id} also failed: {e}")
+                if task not in self._model_failures:
+                    self._model_failures[task] = []
+                self._model_failures[task].append(fallback_id)
+
+        return None
 
     def _init_onnx_models(self):
         """
@@ -497,42 +606,42 @@ class PhotoAnalyzer:
 
     def get_semantic_embedding(self, rgb_image):
         """
-        Extracts 768-dimensional visual embedding using facebook/dinov2 ONNX.
-        Heuristics fallback: HSV color histogram + Laplacian gradient descriptor.
+        Extracts visual embedding using the active embedding model.
+        Supports dynamic model switching with auto-fallback.
         """
-        if self.dinov2_session is not None:
-            try:
-                # Preprocess: DINOv2 expects 224x224
-                resized = cv2.resize(rgb_image, (224, 224))
-                inp = resized.astype(np.float32) / 255.0
-                mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-                std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-                inp = (inp - mean) / std
-                inp = inp.transpose(2, 0, 1)  # HWC -> CHW
-                inp = np.expand_dims(inp, axis=0)  # Batch dimension
-                
-                inputs = {self.dinov2_session.get_inputs()[0].name: inp}
-                outputs = self.dinov2_session.run(None, inputs)
-                embedding = outputs[0][0]  # Shape: (768,)
-                return embedding / (np.linalg.norm(embedding) + 1e-10)
-            except Exception as e:
-                print(f"[WARN] ONNX DINOv2 inference failed: {e}. Falling back to color histogram.")
+        def _run_embedding(model_id, img):
+            session = self._get_session("embedding", model_id)
+            if session is None:
+                raise RuntimeError(f"No session for embedding model {model_id}")
 
-        # Robust Visual Heuristic Fallback: 256-bin HSV color histogram + 256-bin Sobel magnitude hist = 512 dimensions
+            resized = cv2.resize(img, (224, 224))
+            inp = resized.astype(np.float32) / 255.0
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+            inp = (inp - mean) / std
+            inp = inp.transpose(2, 0, 1)
+            inp = np.expand_dims(inp, axis=0)
+
+            inputs = {session.get_inputs()[0].name: inp}
+            outputs = session.run(None, inputs)
+            embedding = outputs[0][0]
+            return embedding / (np.linalg.norm(embedding) + 1e-10)
+
+        result = self._run_with_fallback("embedding", _run_embedding, rgb_image)
+        if result is not None:
+            return result
+
+        print("[WARN] All embedding models failed. Falling back to color histogram.")
         try:
             hsv = cv2.cvtColor(cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR), cv2.COLOR_BGR2HSV)
             h_hist = cv2.calcHist([hsv], [0], None, [128], [0, 180])
             s_hist = cv2.calcHist([hsv], [1], None, [64], [0, 256])
             v_hist = cv2.calcHist([hsv], [2], None, [64], [0, 256])
-            
-            # Grayscale texture histogram
             gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
             sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
             sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
             mag = cv2.magnitude(sobelx, sobely)
             mag_hist = cv2.calcHist([mag.astype(np.float32)], [0], None, [256], [0, 500])
-
-            # Concat and L2 normalize
             feat = np.concatenate([h_hist.flatten(), s_hist.flatten(), v_hist.flatten(), mag_hist.flatten()])
             return feat / (np.linalg.norm(feat) + 1e-10)
         except Exception as e:
@@ -1106,15 +1215,15 @@ class PhotoAnalyzer:
 
     def analyze_aesthetics_clip(self, rgb_image):
         """
-        Regresses CLIP ViT-L/14 image embedding into AVA aesthetic score (1.0-10.0)
-        via lightweight Projection MLP.
+        Regresses aesthetic score using the active aesthetic model.
+        Supports dynamic model switching with auto-fallback.
         """
-        if self.clip_session is None:
-            return self.get_heuristic_aesthetic_score(cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR))
+        def _run_aesthetic(model_id, img):
+            session = self._get_session("aesthetic", model_id)
+            if session is None:
+                raise RuntimeError(f"No session for aesthetic model {model_id}")
 
-        try:
-            # Preprocess for CLIP
-            resized = cv2.resize(rgb_image, (224, 224))
+            resized = cv2.resize(img, (224, 224))
             inp = resized.astype(np.float32) / 255.0
             mean = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32)
             std = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
@@ -1122,63 +1231,58 @@ class PhotoAnalyzer:
             inp = inp.transpose(2, 0, 1)
             inp = np.expand_dims(inp, axis=0)
 
-            inputs = {self.clip_session.get_inputs()[0].name: inp}
-            outputs = self.clip_session.run(None, inputs)
+            inputs = {session.get_inputs()[0].name: inp}
+            outputs = session.run(None, inputs)
             score = float(outputs[0][0][0])
             return float(round(max(1.0, min(10.0, score)), 2))
-        except Exception as e:
-            print(f"[WARN] ONNX CLIP Aesthetics inference failed: {e}")
-            return self.get_heuristic_aesthetic_score(cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR))
+
+        result = self._run_with_fallback("aesthetic", _run_aesthetic, rgb_image)
+        if result is not None:
+            return result
+
+        return self.get_heuristic_aesthetic_score(cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR))
 
     def analyze_aesthetics_nima(self, rgb_image):
         """
         Estimates the NIMA distribution across 10 distinct aesthetic score buckets.
-        Returns:
-            mean_score (float, 1.0-10.0)
-            variance (float, scoring uncertainty)
-            distribution (list of 10 probabilities)
+        Uses active aesthetic model with auto-fallback.
         """
-        if self.nima_session is not None:
-            try:
-                # Preprocess for NIMA: MobileNet/VGG expects 224x224
-                resized = cv2.resize(rgb_image, (224, 224))
-                inp = resized.astype(np.float32) / 255.0
-                mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-                std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-                inp = (inp - mean) / std
-                inp = inp.transpose(2, 0, 1)
-                inp = np.expand_dims(inp, axis=0)
+        def _run_nima(model_id, img):
+            session = self._get_session("aesthetic", model_id)
+            if session is None:
+                raise RuntimeError(f"No session for aesthetic model {model_id}")
 
-                inputs = {self.nima_session.get_inputs()[0].name: inp}
-                outputs = self.nima_session.run(None, inputs)
-                probs = outputs[0][0]  # Shape: (10,)
-                
-                # Expected value
-                mean_score = sum((s + 1) * probs[s] for s in range(10))
-                # Variance
-                variance = sum(probs[s] * (((s + 1) - mean_score) ** 2) for s in range(10))
-                
-                return {
-                    "mean": float(round(mean_score, 2)),
-                    "variance": float(round(variance, 3)),
-                    "distribution": [float(p) for p in probs]
-                }
-            except Exception as e:
-                print(f"[WARN] ONNX NIMA inference failed: {e}")
+            resized = cv2.resize(img, (224, 224))
+            inp = resized.astype(np.float32) / 255.0
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+            inp = (inp - mean) / std
+            inp = inp.transpose(2, 0, 1)
+            inp = np.expand_dims(inp, axis=0)
 
-        # Heuristic simulation of NIMA expected value & variance around CLIP/Heuristic score
-        clip_score = self.analyze_aesthetics_clip(rgb_image)
-        
-        # Mock a Gaussian-like distribution centered on clip_score
+            inputs = {session.get_inputs()[0].name: inp}
+            outputs = session.run(None, inputs)
+            probs = outputs[0][0]
+
+            mean_score = sum((s + 1) * probs[s] for s in range(10))
+            variance = sum(probs[s] * (((s + 1) - mean_score) ** 2) for s in range(10))
+
+            return {
+                "mean": float(round(mean_score, 2)),
+                "variance": float(round(variance, 3)),
+                "distribution": [float(p) for p in probs]
+            }
+
+        result = self._run_with_fallback("aesthetic", _run_nima, rgb_image)
+        if result is not None:
+            return result
+
+        clip_score = self.get_heuristic_aesthetic_score(cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR))
         probs = np.zeros(10)
-        mean_idx = clip_score - 1.0  # Scale 1-10 to index 0-9
-        
-        # Build Gaussian distribution
+        mean_idx = clip_score - 1.0
         for i in range(10):
             probs[i] = math.exp(-((i - mean_idx) ** 2) / 2.0)
         probs /= np.sum(probs)
-        
-        # Compute exact variance of this mock distribution
         mean_score = sum((s + 1) * probs[s] for s in range(10))
         variance = sum(probs[s] * (((s + 1) - mean_score) ** 2) for s in range(10))
 
@@ -1369,7 +1473,8 @@ class PhotoAnalyzer:
             "metadata": exif_meta,
             "dhash": dhash_val,
             "embedding": embedding_val,
-            "cluster_id": None  # Assigned at session scan level
+            "cluster_id": None,
+            "models_used": dict(self.active_models)
         }
         
         return result, preview_bytes

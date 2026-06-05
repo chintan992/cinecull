@@ -12,6 +12,9 @@ import threading
 
 from analyzer import PhotoAnalyzer, HAS_YOLO
 from watcher import PhotoWatcher, IMAGE_EXTENSIONS
+from model_registry import MODEL_REGISTRY, get_all_models_with_status, check_compatibility
+from model_downloader import downloader as model_downloader
+from gpu_detector import GPUDetector
 
 app = FastAPI(title="Photo Culler API")
 
@@ -390,6 +393,102 @@ async def update_engine(cfg: EngineUpdate):
         json.dump(cfg_data, f)
         
     return {"status": "success", "engine": analyzer.engine}
+
+
+class ModelSelectRequest(BaseModel):
+    task: str
+    model_id: str
+
+
+class ModelDownloadRequest(BaseModel):
+    model_id: str
+
+
+@app.get("/api/hardware")
+async def get_hardware():
+    hw = analyzer.get_hardware_info()
+    util = GPUDetector.get_gpu_utilization()
+    if util:
+        hw["utilization"] = util
+    return hw
+
+
+@app.get("/api/models")
+async def list_models():
+    gpu_info = analyzer.get_hardware_info()
+    downloaded = model_downloader.get_downloaded_models()
+    models = get_all_models_with_status(gpu_info, downloaded)
+    return {
+        "models": models,
+        "total_downloaded_mb": model_downloader.get_total_downloaded_size_mb()
+    }
+
+
+@app.get("/api/models/active")
+async def get_active_models():
+    return {"active_models": analyzer.get_active_models()}
+
+
+@app.post("/api/models/select")
+async def select_model(req: ModelSelectRequest):
+    result = analyzer.select_model(req.task, req.model_id)
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    config_file = "config.json"
+    cfg_data = {}
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                cfg_data = json.load(f)
+        except Exception:
+            pass
+
+    cfg_data["active_models"] = analyzer.get_active_models()
+    with open(config_file, "w") as f:
+        json.dump(cfg_data, f)
+
+    return result
+
+
+@app.post("/api/models/download")
+async def download_model(req: ModelDownloadRequest):
+    if model_downloader.is_downloaded(req.model_id):
+        return {"status": "already_downloaded", "model_id": req.model_id}
+
+    def on_progress(progress):
+        pass
+
+    success = model_downloader.download_model(req.model_id, progress_callback=on_progress)
+    if success:
+        return {"status": "success", "model_id": req.model_id}
+    else:
+        raise HTTPException(status_code=500, detail=f"Failed to download model {req.model_id}")
+
+
+@app.get("/api/models/download/progress")
+async def download_progress():
+    return {"downloads": model_downloader.get_all_progress()}
+
+
+@app.post("/api/models/predownload")
+async def predownload_models():
+    gpu_info = analyzer.get_hardware_info()
+    tier = gpu_info.get("tier", "low")
+    threads = model_downloader.predownload_for_tier(tier)
+    return {
+        "status": "started",
+        "tier": tier,
+        "threads": len(threads)
+    }
+
+
+@app.delete("/api/models/{model_id}")
+async def delete_model(model_id: str):
+    success = model_downloader.delete_model(model_id)
+    if success:
+        return {"status": "deleted", "model_id": model_id}
+    raise HTTPException(status_code=404, detail=f"Model {model_id} not found or could not be deleted")
 
 
 def process_analysis_queue():

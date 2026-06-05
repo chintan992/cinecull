@@ -56,6 +56,65 @@ export type CullingMode = 'portrait' | 'landscape' | 'action_sport';
 export type ViewMode = 'grid' | 'loupe' | 'compare';
 export type FilterType = 'ALL' | Recommendation;
 
+export interface HardwareInfo {
+  gpu_name: string;
+  vram_mb: number;
+  vram_gb: number;
+  tier: 'low' | 'medium' | 'high' | 'ultra';
+  cuda_compute: string;
+  driver: string;
+  device_count: number;
+  detection_method: string;
+  recommendations: Record<string, string[]>;
+  utilization?: {
+    gpu_utilization: number;
+    memory_utilization: number;
+    temperature_c: number;
+    vram_used_mb: number;
+    vram_free_mb: number;
+  };
+}
+
+export type ModelTask = 'aesthetic' | 'embedding' | 'face_detection';
+export type ModelQuality = 'basic' | 'good' | 'excellent' | 'best';
+export type ModelSpeed = 'fast' | 'medium' | 'slow' | 'very_slow';
+export type ModelStatus = 'ok' | 'slow' | 'insufficient' | 'error';
+
+export interface ModelInfo {
+  task: ModelTask;
+  id: string;
+  name: string;
+  description: string;
+  size_mb: number;
+  vram_required_mb: number;
+  quality: ModelQuality;
+  speed: ModelSpeed;
+  quality_score: number;
+  speed_score: number;
+  downloaded: boolean;
+  compatible: boolean;
+  status: ModelStatus;
+  message: string;
+  tags: string[];
+  has_file: boolean;
+}
+
+export interface ActiveModels {
+  aesthetic: string;
+  embedding: string;
+  face_detection: string;
+}
+
+export interface DownloadProgress {
+  model_id: string;
+  total_bytes: number;
+  downloaded_bytes: number;
+  progress_pct: number;
+  status: string;
+  error_message: string;
+  speed_mbps: number;
+}
+
 export interface Photo {
   filename: string;
   filepath: string;
@@ -71,6 +130,7 @@ export interface Photo {
   dhash: number;
   embedding: number[];
   cluster_id: number | null;
+  models_used?: ActiveModels;
 }
 
 export interface WSMessage {

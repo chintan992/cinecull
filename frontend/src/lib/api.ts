@@ -1,4 +1,4 @@
-import type { Photo, Recommendation, CullingMode } from '../types/photo';
+import type { Photo, Recommendation, CullingMode, HardwareInfo, ModelInfo, ActiveModels } from '../types/photo';
 
 const BASE_URL = '';
 
@@ -42,6 +42,66 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ engine }),
     });
+    return res.json();
+  },
+
+  async getHardware(): Promise<HardwareInfo> {
+    const res = await fetch(`${BASE_URL}/api/hardware`);
+    return res.json();
+  },
+
+  async getModels(): Promise<{ models: ModelInfo[]; total_downloaded_mb: number }> {
+    const res = await fetch(`${BASE_URL}/api/models`);
+    return res.json();
+  },
+
+  async getActiveModels(): Promise<{ active_models: ActiveModels }> {
+    const res = await fetch(`${BASE_URL}/api/models/active`);
+    return res.json();
+  },
+
+  async selectModel(task: string, model_id: string): Promise<{ status: string; warning?: string }> {
+    const res = await fetch(`${BASE_URL}/api/modelsSelect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task, model_id }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to select model');
+    }
+    return res.json();
+  },
+
+  async downloadModel(model_id: string): Promise<{ status: string }> {
+    const res = await fetch(`${BASE_URL}/api/models/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_id }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to download model');
+    }
+    return res.json();
+  },
+
+  async getDownloadProgress(): Promise<{ downloads: any[] }> {
+    const res = await fetch(`${BASE_URL}/api/models/download/progress`);
+    return res.json();
+  },
+
+  async predownloadModels(): Promise<{ status: string; tier: string; threads: number }> {
+    const res = await fetch(`${BASE_URL}/api/models/predownload`, { method: 'POST' });
+    return res.json();
+  },
+
+  async deleteModel(model_id: string): Promise<{ status: string }> {
+    const res = await fetch(`${BASE_URL}/api/models/${model_id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to delete model');
+    }
     return res.json();
   },
 

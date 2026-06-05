@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ViewMode, CullingMode } from '../types/photo';
+import type { ViewMode, CullingMode, HardwareInfo, ModelInfo, ActiveModels } from '../types/photo';
 
 interface UIState {
   viewMode: ViewMode;
@@ -7,6 +7,7 @@ interface UIState {
   rightPanelOpen: boolean;
   commandPaletteOpen: boolean;
   folderPickerOpen: boolean;
+  settingsOpen: boolean;
   watchDir: string;
   cullingMode: CullingMode;
   engine: string;
@@ -14,6 +15,9 @@ interface UIState {
   connected: boolean;
   analysisPaused: boolean;
   analysisQueueLen: number;
+  hardware: HardwareInfo | null;
+  availableModels: ModelInfo[];
+  activeModels: ActiveModels;
   toasts: Toast[];
 
   setViewMode: (mode: ViewMode) => void;
@@ -24,12 +28,16 @@ interface UIState {
   toggleCommandPalette: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setFolderPickerOpen: (open: boolean) => void;
+  setSettingsOpen: (open: boolean) => void;
   setWatchDir: (dir: string) => void;
   setCullingMode: (mode: CullingMode) => void;
   setEngine: (engine: string, hasYolo: boolean) => void;
   setConnected: (connected: boolean) => void;
   setAnalysisPaused: (paused: boolean) => void;
   setAnalysisQueueLen: (len: number) => void;
+  setHardware: (info: HardwareInfo) => void;
+  setAvailableModels: (models: ModelInfo[]) => void;
+  setActiveModels: (models: ActiveModels) => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
 }
@@ -48,6 +56,7 @@ export const useUIStore = create<UIState>((set) => ({
   rightPanelOpen: true,
   commandPaletteOpen: false,
   folderPickerOpen: false,
+  settingsOpen: false,
   watchDir: '',
   cullingMode: 'portrait',
   engine: 'standard',
@@ -55,6 +64,9 @@ export const useUIStore = create<UIState>((set) => ({
   connected: false,
   analysisPaused: false,
   analysisQueueLen: 0,
+  hardware: null,
+  availableModels: [],
+  activeModels: { aesthetic: 'nima', embedding: 'dinov2_small', face_detection: 'mediapipe' },
   toasts: [],
 
   setViewMode: (mode) => set({ viewMode: mode }),
@@ -65,12 +77,16 @@ export const useUIStore = create<UIState>((set) => ({
   toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   setFolderPickerOpen: (open) => set({ folderPickerOpen: open }),
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
   setWatchDir: (dir) => set({ watchDir: dir }),
   setCullingMode: (mode) => set({ cullingMode: mode }),
   setEngine: (engine, hasYolo) => set({ engine, hasYolo }),
   setConnected: (connected) => set({ connected }),
   setAnalysisPaused: (paused) => set({ analysisPaused: paused }),
   setAnalysisQueueLen: (len) => set({ analysisQueueLen: len }),
+  setHardware: (info) => set({ hardware: info }),
+  setAvailableModels: (models) => set({ availableModels: models }),
+  setActiveModels: (models) => set({ activeModels: models }),
 
   addToast: (toast) => {
     const id = String(++toastId);
