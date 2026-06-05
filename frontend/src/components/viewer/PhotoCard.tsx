@@ -1,6 +1,6 @@
 import { usePhotoStore } from '../../store/usePhotoStore';
 import { api } from '../../lib/api';
-import { cn, getScoreColor, getRecommendationBorder } from '../../lib/utils';
+import { cn, getRecommendationBorder } from '../../lib/utils';
 import { CheckCircle2, HelpCircle, XCircle, Eye } from 'lucide-react';
 
 export function PhotoCard({ photo }: { photo: import('../../types/photo').Photo }) {

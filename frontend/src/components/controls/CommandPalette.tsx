@@ -124,20 +124,20 @@ export function CommandPalette() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -10 }}
             transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-            className="w-full max-w-lg bg-chrome-900 border border-chrome-700 rounded-xl shadow-2xl overflow-hidden"
+            className="w-full max-w-lg bg-chrome-900 border border-chrome-700/50 rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-chrome-800">
-              <Search size={14} className="text-chrome-500 shrink-0" />
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-chrome-800/50">
+              <Search size={16} className="text-chrome-500 shrink-0" />
               <input
                 ref={inputRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Type a command..."
-                className="flex-1 bg-transparent text-[12px] text-chrome-100 placeholder-chrome-600 focus:outline-none"
+                className="flex-1 bg-transparent text-sm text-chrome-100 placeholder-chrome-600 focus:outline-none"
               />
-              <span className="text-[8px] text-chrome-600 font-mono bg-chrome-850 px-1.5 py-0.5 rounded border border-chrome-800">
+              <span className="text-[9px] text-chrome-600 font-mono bg-chrome-850 px-2 py-0.5 rounded border border-chrome-800/50">
                 ESC
               </span>
             </div>
@@ -145,7 +145,7 @@ export function CommandPalette() {
             <div className="p-2 max-h-[300px] overflow-y-auto">
               {filtered.length === 0 ? (
                 <div className="py-8 text-center">
-                  <p className="text-[10px] text-chrome-500">No commands found</p>
+                  <p className="text-xs text-chrome-500">No commands found</p>
                 </div>
               ) : (
                 filtered.map((cmd) => {
@@ -157,14 +157,14 @@ export function CommandPalette() {
                         cmd.action();
                         setOpen(false);
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-chrome-850 transition-colors text-left"
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-chrome-850 transition-colors text-left"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-chrome-850 border border-chrome-800 flex items-center justify-center shrink-0">
-                        <Icon size={14} className="text-chrome-400" />
+                      <div className="w-9 h-9 rounded-xl bg-chrome-850 border border-chrome-800/50 flex items-center justify-center shrink-0">
+                        <Icon size={15} className="text-chrome-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-medium text-chrome-200">{cmd.label}</p>
-                        <p className="text-[9px] text-chrome-500">{cmd.description}</p>
+                        <p className="text-xs font-medium text-chrome-200">{cmd.label}</p>
+                        <p className="text-[10px] text-chrome-500">{cmd.description}</p>
                       </div>
                     </button>
                   );
@@ -172,17 +172,17 @@ export function CommandPalette() {
               )}
             </div>
 
-            <div className="px-4 py-2.5 border-t border-chrome-800 bg-chrome-850/50">
+            <div className="px-5 py-3 border-t border-chrome-800/50 bg-chrome-850/50">
               <div className="flex items-center gap-2">
-                <span className="text-[9px] text-chrome-500">Budget:</span>
+                <span className="text-[10px] text-chrome-500">Budget:</span>
                 <input
                   type="number"
                   value={budgetValue}
                   onChange={(e) => setBudgetValue(e.target.value)}
                   min="1"
-                  className="w-16 bg-chrome-900 border border-chrome-800 rounded px-2 py-1 text-[10px] text-chrome-200 font-mono focus:outline-none focus:border-accent-500/50"
+                  className="w-16 bg-chrome-900 border border-chrome-800/50 rounded-lg px-2.5 py-1.5 text-[11px] text-chrome-200 font-mono focus:outline-none focus:border-accent-500/50"
                 />
-                <span className="text-[8px] text-chrome-600">keepers for budget optimization</span>
+                <span className="text-[9px] text-chrome-600">keepers for budget optimization</span>
               </div>
             </div>
           </motion.div>

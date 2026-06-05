@@ -6,7 +6,7 @@ import { ExposureMetrics } from '../inspector/ExposureMetrics';
 import { AestheticMetrics } from '../inspector/AestheticMetrics';
 import { FaceDetails } from '../inspector/FaceDetails';
 import { ExifMetadata } from '../inspector/ExifMetadata';
-import { Info, ScanSearch } from 'lucide-react';
+import { ScanSearch } from 'lucide-react';
 
 export function RightPanel() {
   const photo = usePhotoStore(selectSelectedPhoto);

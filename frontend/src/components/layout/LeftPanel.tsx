@@ -1,4 +1,4 @@
-import { Library, CheckCircle2, HelpCircle, Trash2, Download, Upload, RotateCcw, BarChart3, FolderSearch, Sparkles } from 'lucide-react';
+import { Library, CheckCircle2, HelpCircle, Trash2, Download, Upload, RotateCcw, FolderSearch, Sparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { usePhotoStore, selectCounts } from '../../store/usePhotoStore';
 import { useUIStore } from '../../store/useUIStore';

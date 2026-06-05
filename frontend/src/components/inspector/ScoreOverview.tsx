@@ -45,10 +45,10 @@ export function ScoreOverview({ photo }: { photo: Photo }) {
 
       <div className="flex gap-2">
         {([
-          { rec: 'Keep' as const, label: 'Keep', shortcut: '1', Icon: CheckCircle2, activeClass: 'bg-keep-500 text-white shadow-lg shadow-keep-500/30' },
-          { rec: 'Review' as const, label: 'Review', shortcut: '2', Icon: HelpCircle, activeClass: 'bg-review-500 text-white shadow-lg shadow-review-500/30' },
-          { rec: 'Reject' as const, label: 'Reject', shortcut: '3', Icon: XCircle, activeClass: 'bg-reject-500 text-white shadow-lg shadow-reject-500/30' },
-        ]).map(({ rec, label, shortcut, Icon, activeClass }) => (
+          { rec: 'Keep' as const, label: 'Keep', Icon: CheckCircle2, activeClass: 'bg-keep-500 text-white shadow-lg shadow-keep-500/30' },
+          { rec: 'Review' as const, label: 'Review', Icon: HelpCircle, activeClass: 'bg-review-500 text-white shadow-lg shadow-review-500/30' },
+          { rec: 'Reject' as const, label: 'Reject', Icon: XCircle, activeClass: 'bg-reject-500 text-white shadow-lg shadow-reject-500/30' },
+        ]).map(({ rec, label, Icon, activeClass }) => (
           <button
             key={rec}
             onClick={() => setRec(rec)}

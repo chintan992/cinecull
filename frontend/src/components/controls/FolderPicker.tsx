@@ -40,15 +40,15 @@ export function FolderPicker() {
       open={open}
       onClose={() => setOpen(false)}
       title="Set Watch Folder"
-      icon={<FolderSearch size={14} className="text-accent-400" />}
+      icon={<FolderSearch size={15} className="text-accent-400" />}
     >
       <div className="space-y-4">
-        <p className="text-[11px] text-chrome-400 leading-relaxed">
+        <p className="text-xs text-chrome-400 leading-relaxed">
           Enter the absolute path to your photo shoot folder. CineCull will monitor this directory and analyze new photos automatically.
         </p>
 
-        <div className="space-y-1.5">
-          <label className="text-[8px] font-bold uppercase tracking-widest text-chrome-500">
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold uppercase tracking-widest text-chrome-500">
             Folder Path
           </label>
           <input
@@ -56,7 +56,7 @@ export function FolderPicker() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="e.g. C:\Users\Name\Pictures\Shoot1"
-            className="w-full bg-chrome-950 border border-chrome-800 rounded-lg px-3 py-2.5 text-[11px] text-chrome-100 font-mono placeholder-chrome-600 focus:outline-none focus:border-accent-500/50 transition-colors"
+            className="w-full bg-chrome-950 border border-chrome-800/50 rounded-xl px-4 py-3 text-xs text-chrome-100 font-mono placeholder-chrome-600 focus:outline-none focus:border-accent-500/50 transition-colors"
             onKeyDown={(e) => e.key === 'Enter' && handleSave()}
           />
         </div>
@@ -64,13 +64,13 @@ export function FolderPicker() {
         <div className="flex justify-end gap-2 pt-2">
           <button
             onClick={() => setOpen(false)}
-            className="px-3 py-2 rounded-lg bg-chrome-850 hover:bg-chrome-800 border border-chrome-800 text-[10px] font-bold text-chrome-400 transition-colors"
+            className="px-4 py-2.5 rounded-xl bg-chrome-850 hover:bg-chrome-800 border border-chrome-800/50 text-[11px] font-bold text-chrome-400 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 rounded-lg bg-accent-500 hover:bg-accent-400 text-white text-[10px] font-bold transition-colors"
+            className="px-5 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-600 text-white text-[11px] font-bold transition-colors shadow-lg shadow-accent-500/20"
           >
             Save & Scan
           </button>
