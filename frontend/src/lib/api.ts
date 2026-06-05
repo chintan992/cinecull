@@ -61,7 +61,7 @@ export const api = {
   },
 
   async selectModel(task: string, model_id: string): Promise<{ status: string; warning?: string }> {
-    const res = await fetch(`${BASE_URL}/api/models_select`, {
+    const res = await fetch(`${BASE_URL}/api/models/select`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ task, model_id }),
