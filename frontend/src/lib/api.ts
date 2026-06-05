@@ -8,7 +8,7 @@ export const api = {
     return res.json();
   },
 
-  async getConfig(): Promise<{ watch_dir: string; culling_mode: CullingMode }> {
+  async getConfig(): Promise<{ watch_dir: string; culling_mode: CullingMode; analysis_paused?: boolean; analysis_queue_len?: number }> {
     const res = await fetch(`${BASE_URL}/api/config`);
     return res.json();
   },
@@ -79,6 +79,16 @@ export const api = {
 
   async redoCulling() {
     const res = await fetch(`${BASE_URL}/api/photos/redo`, { method: 'POST' });
+    return res.json();
+  },
+
+  async pauseAnalysis() {
+    const res = await fetch(`${BASE_URL}/api/analysis/pause`, { method: 'POST' });
+    return res.json();
+  },
+
+  async resumeAnalysis() {
+    const res = await fetch(`${BASE_URL}/api/analysis/resume`, { method: 'POST' });
     return res.json();
   },
 

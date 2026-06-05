@@ -1,4 +1,4 @@
-import { Library, CheckCircle2, HelpCircle, Trash2, Download, Upload, RotateCcw, BarChart3 } from 'lucide-react';
+import { Library, CheckCircle2, HelpCircle, Trash2, Download, Upload, RotateCcw, BarChart3, FolderSearch, Sparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { usePhotoStore, selectCounts } from '../../store/usePhotoStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -6,11 +6,11 @@ import { api } from '../../lib/api';
 import { cn } from '../../lib/utils';
 import type { FilterType } from '../../types/photo';
 
-const filters: { type: FilterType; label: string; icon: typeof Library; color: string }[] = [
-  { type: 'ALL', label: 'All Imports', icon: Library, color: 'text-accent-400' },
-  { type: 'Keep', label: 'Keep', icon: CheckCircle2, color: 'text-keep-400' },
-  { type: 'Review', label: 'Review', icon: HelpCircle, color: 'text-review-400' },
-  { type: 'Reject', label: 'Reject', icon: Trash2, color: 'text-reject-400' },
+const filters: { type: FilterType; label: string; icon: typeof Library; color: string; activeColor: string }[] = [
+  { type: 'ALL', label: 'All Photos', icon: Library, color: 'text-accent-400', activeColor: 'bg-accent-500/10 border-accent-500/30 text-accent-400' },
+  { type: 'Keep', label: 'Keepers', icon: CheckCircle2, color: 'text-keep-400', activeColor: 'bg-keep-500/10 border-keep-500/30 text-keep-400' },
+  { type: 'Review', label: 'Review', icon: HelpCircle, color: 'text-review-400', activeColor: 'bg-review-500/10 border-review-500/30 text-review-400' },
+  { type: 'Reject', label: 'Rejected', icon: Trash2, color: 'text-reject-400', activeColor: 'bg-reject-500/10 border-reject-500/30 text-reject-400' },
 ];
 
 export function LeftPanel() {
@@ -33,7 +33,7 @@ export function LeftPanel() {
   async function handleScan() {
     try {
       const res = await api.scanDirectory();
-      addToast({ message: `Scan: ${res.found_total} found, ${res.added_to_queue} queued`, type: 'success' });
+      addToast({ message: `Found ${res.found_total} photos, ${res.added_to_queue} queued for analysis`, type: 'success' });
     } catch {
       addToast({ message: 'Scan failed', type: 'error' });
     }
@@ -90,87 +90,95 @@ export function LeftPanel() {
   }
 
   return (
-    <aside className="w-48 bg-chrome-900 border-r border-chrome-800 flex flex-col shrink-0 overflow-y-auto">
-      <div className="p-3 space-y-1">
-        <span className="text-[8px] font-bold uppercase tracking-widest text-chrome-500 px-2 mb-2 block">
+    <aside className="w-52 bg-chrome-900 border-r border-chrome-800/50 flex flex-col shrink-0 overflow-y-auto">
+      <div className="p-4 space-y-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-chrome-500 px-3 mb-3 block">
           Library
         </span>
-        {filters.map(({ type, label, icon: Icon, color }) => (
+        {filters.map(({ type, label, icon: Icon, activeColor }) => (
           <button
             key={type}
             onClick={() => setFilter(type)}
             className={cn(
-              'w-full flex items-center justify-between px-2.5 py-2 rounded-md text-[11px] transition-all',
+              'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-all border',
               filter === type
-                ? 'bg-chrome-800 text-chrome-100'
-                : 'text-chrome-400 hover:bg-chrome-850 hover:text-chrome-200'
+                ? activeColor
+                : 'border-transparent text-chrome-400 hover:bg-chrome-850 hover:text-chrome-200'
             )}
           >
-            <span className="flex items-center gap-2">
-              <Icon size={13} className={color} />
+            <span className="flex items-center gap-2.5">
+              <Icon size={14} />
               {label}
             </span>
-            <span className="text-[9px] font-mono text-chrome-500">{countMap[type]}</span>
+            <span className="text-[10px] font-mono text-chrome-500 bg-chrome-850 px-1.5 py-0.5 rounded">
+              {countMap[type]}
+            </span>
           </button>
         ))}
       </div>
 
-      <div className="border-t border-chrome-800 p-3 space-y-1.5">
-        <span className="text-[8px] font-bold uppercase tracking-widest text-chrome-500 px-2 mb-2 block">
-          Actions
+      <div className="border-t border-chrome-800/50 p-4 space-y-2">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-chrome-500 px-3 mb-3 block">
+          Workflow
         </span>
         <button
           onClick={handleScan}
-          className="w-full px-2.5 py-2 rounded-md bg-chrome-850 hover:bg-chrome-800 border border-chrome-800 text-[10px] font-medium text-chrome-300 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-accent-500 hover:bg-accent-600 text-white text-xs font-semibold transition-colors shadow-lg shadow-accent-500/20"
         >
+          <FolderSearch size={13} />
           Scan Directory
         </button>
         <button
           onClick={handleOrganize}
           disabled={photos.length === 0}
-          className="w-full px-2.5 py-2 rounded-md bg-keep-500/10 hover:bg-keep-500/20 border border-keep-500/20 text-[10px] font-medium text-keep-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-keep-500/10 hover:bg-keep-500/20 border border-keep-500/30 text-xs font-medium text-keep-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
+          <Sparkles size={13} />
           Organize Photos
         </button>
       </div>
 
-      <div className="border-t border-chrome-800 p-3 space-y-1.5">
-        <span className="text-[8px] font-bold uppercase tracking-widest text-chrome-500 px-2 mb-2 block">
+      <div className="border-t border-chrome-800/50 p-4 space-y-2">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-chrome-500 px-3 mb-3 block">
           Session
         </span>
-        <button
-          onClick={handleExport}
-          className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-md bg-chrome-850 hover:bg-chrome-800 border border-chrome-800 text-[10px] font-medium text-chrome-300 transition-colors"
-        >
-          <Download size={11} /> Export
-        </button>
-        <button
-          onClick={handleImport}
-          className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-md bg-chrome-850 hover:bg-chrome-800 border border-chrome-800 text-[10px] font-medium text-chrome-300 transition-colors"
-        >
-          <Upload size={11} /> Import
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={handleExport}
+            className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-chrome-850 hover:bg-chrome-800 border border-chrome-800/50 text-[11px] font-medium text-chrome-300 transition-colors"
+          >
+            <Download size={11} /> Export
+          </button>
+          <button
+            onClick={handleImport}
+            className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-chrome-850 hover:bg-chrome-800 border border-chrome-800/50 text-[11px] font-medium text-chrome-300 transition-colors"
+          >
+            <Upload size={11} /> Import
+          </button>
+        </div>
         <button
           onClick={handleRedo}
-          className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-md bg-reject-500/5 hover:bg-reject-500/10 border border-reject-500/10 text-[10px] font-medium text-reject-400/80 transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-reject-500/5 hover:bg-reject-500/10 border border-reject-500/20 text-[11px] font-medium text-reject-400/80 transition-colors"
         >
-          <RotateCcw size={11} /> Reset
+          <RotateCcw size={11} /> Reset Culling
         </button>
       </div>
 
-      <div className="mt-auto border-t border-chrome-800 p-3">
-        <div className="flex items-center gap-2 px-2">
-          <BarChart3 size={11} className="text-chrome-500" />
-          <div className="flex-1 flex justify-between text-[9px]">
-            <span className="text-chrome-500">Photos</span>
-            <span className="font-mono text-chrome-300 font-semibold">{counts.all}</span>
+      <div className="mt-auto border-t border-chrome-800/50 p-4">
+        <div className="bg-chrome-850 rounded-lg p-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-chrome-500 uppercase tracking-wider">Total Photos</span>
+            <span className="text-sm font-bold font-mono text-chrome-100">{counts.all}</span>
           </div>
-        </div>
-        <div className="flex items-center gap-2 px-2 mt-1">
-          <BarChart3 size={11} className="text-chrome-500" />
-          <div className="flex-1 flex justify-between text-[9px]">
-            <span className="text-chrome-500">Avg Score</span>
-            <span className="font-mono text-chrome-300 font-semibold">{avgScore}%</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-chrome-500 uppercase tracking-wider">Avg Score</span>
+            <span className="text-sm font-bold font-mono text-accent-400">{avgScore}%</span>
+          </div>
+          <div className="h-1.5 bg-chrome-800 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-accent-500 to-accent-400 rounded-full transition-all duration-500"
+              style={{ width: `${avgScore}%` }}
+            />
           </div>
         </div>
       </div>

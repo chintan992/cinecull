@@ -20,17 +20,17 @@ export function Filmstrip() {
 
   if (photos.length === 0) {
     return (
-      <div className="h-20 bg-chrome-900 border-t border-chrome-800 flex items-center justify-center shrink-0">
-        <span className="text-[10px] text-chrome-500 font-mono">No photos in current view</span>
+      <div className="h-24 bg-chrome-900 border-t border-chrome-800/50 flex items-center justify-center shrink-0">
+        <span className="text-xs text-chrome-500 font-mono">No photos in current view</span>
       </div>
     );
   }
 
   return (
-    <div className="h-20 bg-chrome-900 border-t border-chrome-800 shrink-0">
+    <div className="h-24 bg-chrome-900 border-t border-chrome-800/50 shrink-0">
       <div
         ref={scrollRef}
-        className="h-full flex items-center gap-1.5 px-3 overflow-x-auto"
+        className="h-full flex items-center gap-2 px-4 overflow-x-auto"
       >
         {photos.map((photo) => (
           <button
@@ -38,9 +38,9 @@ export function Filmstrip() {
             data-filepath={photo.filepath}
             onClick={() => selectPhoto(photo.filepath)}
             className={cn(
-              'relative h-14 w-14 shrink-0 rounded overflow-hidden border-2 transition-all',
+              'relative h-16 w-16 shrink-0 rounded-lg overflow-hidden border-2 transition-all duration-200',
               selectedFilepath === photo.filepath
-                ? 'border-accent-500 ring-1 ring-accent-500/30'
+                ? 'border-accent-500 ring-2 ring-accent-500/30 scale-105 shadow-lg shadow-accent-500/20'
                 : getRecommendationBorder(photo.recommendation)
             )}
           >
@@ -51,11 +51,14 @@ export function Filmstrip() {
               loading="lazy"
             />
             <div className={cn(
-              'absolute bottom-0 right-0 w-4 h-4 rounded-tl flex items-center justify-center text-[7px] font-bold font-mono text-white',
+              'absolute bottom-0 right-0 w-5 h-5 rounded-tl-lg flex items-center justify-center text-[8px] font-bold font-mono text-white shadow-lg',
               getScoreBgColor(photo.overall_score)
             )}>
               {Math.round(photo.overall_score)}
             </div>
+            {selectedFilepath === photo.filepath && (
+              <div className="absolute inset-0 border-2 border-accent-500 rounded-lg" />
+            )}
           </button>
         ))}
       </div>

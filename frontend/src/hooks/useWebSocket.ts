@@ -11,6 +11,8 @@ export function useWebSocket() {
   const updatePhoto = usePhotoStore((s) => s.updatePhoto);
   const setWatchDir = useUIStore((s) => s.setWatchDir);
   const setCullingMode = useUIStore((s) => s.setCullingMode);
+  const setAnalysisPaused = useUIStore((s) => s.setAnalysisPaused);
+  const setAnalysisQueueLen = useUIStore((s) => s.setAnalysisQueueLen);
   const addToast = useUIStore((s) => s.addToast);
 
   useEffect(() => {
@@ -36,6 +38,8 @@ export function useWebSocket() {
             if (msg.watch_dir) setWatchDir(msg.watch_dir);
             if (msg.culling_mode) setCullingMode(msg.culling_mode);
             if (msg.photos) setPhotos(msg.photos);
+            if (msg.analysis_paused !== undefined) setAnalysisPaused(msg.analysis_paused);
+            if (msg.analysis_queue_len !== undefined) setAnalysisQueueLen(msg.analysis_queue_len);
             break;
 
           case 'PHOTO_DETECTED':
@@ -60,6 +64,11 @@ export function useWebSocket() {
             if (msg.filepath && msg.recommendation) {
               usePhotoStore.getState().updateRecommendation(msg.filepath, msg.recommendation);
             }
+            break;
+
+          case 'QUEUE_STATUS':
+            if (msg.paused !== undefined) setAnalysisPaused(msg.paused);
+            if (msg.queue_len !== undefined) setAnalysisQueueLen(msg.queue_len);
             break;
         }
       };

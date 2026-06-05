@@ -33,7 +33,10 @@ state = {
     "active_connections": set(),
     "watcher": None,
     "loop": None,
-    "culling_mode": "portrait"  # default mode
+    "culling_mode": "portrait",  # default mode
+    "analysis_paused": False,
+    "analysis_queue": [],
+    "processing_thread_active": False
 }
 
 # Lock for database operations
@@ -202,19 +205,26 @@ def on_new_photo_detected(file_path: str):
     if file_path in state["photos"]:
         return
     
-    # Broadcast that analysis has started
-    if state["loop"]:
-        asyncio.run_coroutine_threadsafe(
-            broadcast({
-                "type": "PHOTO_DETECTED",
-                "filename": os.path.basename(file_path),
-                "filepath": file_path
-            }),
-            state["loop"]
-        )
-    
-    # Start analysis in a separate thread to not block watcher
-    threading.Thread(target=run_analysis_in_thread, args=(file_path,), daemon=True).start()
+    with db_lock:
+        if file_path not in state["analysis_queue"]:
+            state["analysis_queue"].append(file_path)
+        
+        paused = state.get("analysis_paused", False)
+        
+        # Broadcast queue status update
+        if state["loop"]:
+            asyncio.run_coroutine_threadsafe(
+                broadcast({
+                    "type": "QUEUE_STATUS",
+                    "paused": paused,
+                    "queue_len": len(state["analysis_queue"])
+                }),
+                state["loop"]
+            )
+            
+    if not paused:
+        # Start processing queue in a background thread if not already active
+        threading.Thread(target=process_analysis_queue, daemon=True).start()
 
 
 def restart_watcher(new_dir: str):
@@ -266,7 +276,9 @@ async def websocket_endpoint(websocket: WebSocket):
             "type": "INIT",
             "watch_dir": state["watch_dir"],
             "culling_mode": state["culling_mode"],
-            "photos": list(state["photos"].values())
+            "photos": list(state["photos"].values()),
+            "analysis_paused": state.get("analysis_paused", False),
+            "analysis_queue_len": len(state["analysis_queue"])
         })
         
         while True:
@@ -279,7 +291,9 @@ async def websocket_endpoint(websocket: WebSocket):
 async def get_config():
     return {
         "watch_dir": state["watch_dir"],
-        "culling_mode": state["culling_mode"]
+        "culling_mode": state["culling_mode"],
+        "analysis_paused": state.get("analysis_paused", False),
+        "analysis_queue_len": len(state["analysis_queue"])
     }
 
 
@@ -378,13 +392,108 @@ async def update_engine(cfg: EngineUpdate):
     return {"status": "success", "engine": analyzer.engine}
 
 
+def process_analysis_queue():
+    """
+    Runs in a background thread to process queued files sequentially.
+    """
+    with db_lock:
+        if state.get("processing_thread_active", False):
+            return
+        state["processing_thread_active"] = True
+
+    try:
+        while True:
+            file_path = None
+            with db_lock:
+                if state.get("analysis_paused", False) or not state["analysis_queue"]:
+                    state["processing_thread_active"] = False
+                    # Broadcast final queue status update
+                    if state["loop"]:
+                        asyncio.run_coroutine_threadsafe(
+                            broadcast({
+                                "type": "QUEUE_STATUS",
+                                "paused": state.get("analysis_paused", False),
+                                "queue_len": len(state["analysis_queue"])
+                            }),
+                            state["loop"]
+                        )
+                    break
+                
+                file_path = state["analysis_queue"].pop(0)
+                
+                # Broadcast queue status update (length decreased)
+                if state["loop"]:
+                    asyncio.run_coroutine_threadsafe(
+                        broadcast({
+                            "type": "QUEUE_STATUS",
+                            "paused": False,
+                            "queue_len": len(state["analysis_queue"])
+                        }),
+                        state["loop"]
+                    )
+                    
+            if file_path:
+                # Broadcast start of analysis for this file
+                if state["loop"]:
+                    asyncio.run_coroutine_threadsafe(
+                        broadcast({
+                            "type": "PHOTO_DETECTED",
+                            "filename": os.path.basename(file_path),
+                            "filepath": file_path
+                        }),
+                        state["loop"]
+                    )
+                try:
+                    run_analysis_in_thread(file_path)
+                except Exception as e:
+                    print(f"Error processing queued file {file_path}: {e}")
+    finally:
+        with db_lock:
+            state["processing_thread_active"] = False
+
+
+@app.get("/api/analysis/status")
+async def get_analysis_status():
+    with db_lock:
+        return {
+            "paused": state.get("analysis_paused", False),
+            "queue_len": len(state["analysis_queue"])
+        }
+
+
+@app.post("/api/analysis/pause")
+async def pause_analysis():
+    with db_lock:
+        state["analysis_paused"] = True
+        if state["loop"]:
+            asyncio.run_coroutine_threadsafe(
+                broadcast({
+                    "type": "QUEUE_STATUS",
+                    "paused": True,
+                    "queue_len": len(state["analysis_queue"])
+                }),
+                state["loop"]
+            )
+    return {"status": "success", "paused": True}
+
+
+@app.post("/api/analysis/resume")
+async def resume_analysis():
+    with db_lock:
+        state["analysis_paused"] = False
+        
+    # Start background processing thread
+    threading.Thread(target=process_analysis_queue, daemon=True).start()
+    return {"status": "success", "paused": False}
+
+
 @app.get("/api/photos")
 async def get_photos():
     return list(state["photos"].values())
 
 
 @app.post("/api/photos/scan")
-async def scan_directory(background_tasks: BackgroundTasks):
+async def scan_directory():
     """
     Scans the current watch directory for existing photos that haven't been analyzed yet.
     """
@@ -406,15 +515,28 @@ async def scan_directory(background_tasks: BackgroundTasks):
             
     new_files = [f for f in files_to_analyze if f not in state["photos"]]
     
-    for file_path in new_files:
-        background_tasks.add_task(run_analysis_in_thread, file_path)
+    with db_lock:
+        for file_path in new_files:
+            if file_path not in state["analysis_queue"]:
+                state["analysis_queue"].append(file_path)
+                
+        paused = state.get("analysis_paused", False)
         
-    # Run a session clustering update on existing files immediately
-    if len(state["photos"]) > 0:
-        update_session_clustering()
-        save_db()
+        # Broadcast queue status update
+        if state["loop"]:
+            asyncio.run_coroutine_threadsafe(
+                broadcast({
+                    "type": "QUEUE_STATUS",
+                    "paused": paused,
+                    "queue_len": len(state["analysis_queue"])
+                }),
+                state["loop"]
+            )
+            
+    if not paused and new_files:
+        threading.Thread(target=process_analysis_queue, daemon=True).start()
         
-    return {"status": "success", "found_total": len(files_to_analyze), "added_to_queue": len(new_files)}
+    return {"status": "success", "found_total": len(files_to_analyze), "added_to_queue": len(new_files), "paused": paused}
 
 
 @app.post("/api/photos/budget")

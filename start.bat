@@ -1,12 +1,12 @@
 @echo off
 echo ===================================================
-echo Starting CineCull Photo Culling Assistant
+echo   CineCull Photo Culling Assistant
 echo ===================================================
 
 :: Check if Python is installed
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Error: Python is not installed or not in PATH. Please install Python.
+    echo Error: Python is not installed or not in PATH.
     pause
     exit /b
 )
@@ -14,9 +14,16 @@ if %errorlevel% neq 0 (
 :: Check if Node.js is installed
 node --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Error: Node.js is not installed or not in PATH. Please install Node.js.
+    echo Error: Node.js is not installed or not in PATH.
     pause
     exit /b
+)
+
+:: Get local IP address for LAN access
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
+    for /f "tokens=1" %%b in ("%%a") do (
+        set "LAN_IP=%%b"
+    )
 )
 
 REM Create Python virtual environment if it doesn't exist
@@ -43,10 +50,27 @@ if not exist node_modules (
 call npm run build
 cd ..
 
-:: Open dashboard in browser
+:: Open dashboard in browser (local machine only)
+echo.
 echo Launching dashboard in your default browser...
 start http://127.0.0.1:8000
 
-:: Start FastAPI server
-echo Starting backend server on http://127.0.0.1:8000
-uvicorn main:app --host 127.0.0.1 --port 8000
+:: Show access URLs
+echo.
+echo ===================================================
+echo   Server is running!
+echo ===================================================
+echo.
+echo   Local:   http://127.0.0.1:8000
+echo   LAN:     http://%LAN_IP%:8000
+echo.
+echo   Share the LAN URL with other devices on your
+echo   network to access CineCull remotely.
+echo.
+echo   Press Ctrl+C to stop the server.
+echo ===================================================
+echo.
+
+:: Start FastAPI server on all interfaces for LAN access
+echo Starting backend server...
+uvicorn main:app --host 0.0.0.0 --port 8000

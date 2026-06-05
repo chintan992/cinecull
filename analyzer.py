@@ -444,8 +444,8 @@ class PhotoAnalyzer:
             resized = cv2.resize(rgb_image, (224, 224))
             inp = resized.astype(np.float32) / 255.0
             # Normalize with ImageNet mean/std
-            mean = np.array([0.485, 0.456, 0.406])
-            std = np.array([0.229, 0.224, 0.225])
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
             inp = (inp - mean) / std
             inp = inp.transpose(2, 0, 1)  # HWC -> CHW
             inp = np.expand_dims(inp, axis=0)  # Add batch dim
@@ -505,8 +505,8 @@ class PhotoAnalyzer:
                 # Preprocess: DINOv2 expects 224x224
                 resized = cv2.resize(rgb_image, (224, 224))
                 inp = resized.astype(np.float32) / 255.0
-                mean = np.array([0.485, 0.456, 0.406])
-                std = np.array([0.229, 0.224, 0.225])
+                mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+                std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
                 inp = (inp - mean) / std
                 inp = inp.transpose(2, 0, 1)  # HWC -> CHW
                 inp = np.expand_dims(inp, axis=0)  # Batch dimension
@@ -542,8 +542,8 @@ class PhotoAnalyzer:
     def cluster_session_photos(self, photos_metadata: list, similarity_threshold=0.85, min_samples=1):
         """
         Two-tier clustering:
-        1. Fast dHash + Union-Find for high-frequency burst grouping (Hamming distance <= 10).
-        2. Semantic DBSCAN clustering on DINOv2/Heuristic embeddings for visual scene grouping.
+        1. Run DBSCAN globally on all session embeddings to classify scenes.
+        2. Within each scene cluster, run dHash Union-Find to group identical bursts.
         Returns: A dict mapping filepath -> cluster_id (int)
         """
         if not photos_metadata:
@@ -573,62 +573,66 @@ class PhotoAnalyzer:
             dhashes[fp] = dhash_val
             embeddings[fp] = np.array(embedding_val)
 
-        # 2. Tier 1: Union-Find grouping based on dHash Hamming distance <= 10
-        uf = UnionFind(paths)
-        n = len(paths)
-        for i in range(n):
-            for j in range(i + 1, n):
-                p1, p2 = paths[i], paths[j]
-                # Hamming distance
-                dist = bin(dhashes[p1] ^ dhashes[p2]).count('1')
-                if dist <= 10:
-                    uf.union(p1, p2)
-
-        # Retrieve structural groups from Union-Find
-        groups = {}
-        for p in paths:
-            root = uf.find(p)
-            if root not in groups:
-                groups[root] = []
-            groups[root].append(p)
-
-        # 3. Tier 2: DBSCAN clustering using Cosine distance on embeddings
-        # DBSCAN eps = 1 - S_target
+        # 2. Run DBSCAN globally on all session embeddings to classify scenes
         eps = 1.0 - similarity_threshold
+        group_paths = list(embeddings.keys())
+        
+        if not group_paths:
+            return {}
+            
+        group_embeddings = np.array([embeddings[p] for p in group_paths])
+        
+        if HAS_SKLEARN_DBSCAN:
+            try:
+                db = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
+                labels = db.fit_predict(group_embeddings).tolist()
+            except Exception:
+                labels = custom_dbscan(group_embeddings, eps=eps, min_samples=min_samples)
+        else:
+            labels = custom_dbscan(group_embeddings, eps=eps, min_samples=min_samples)
+
+        # Group paths by DBSCAN scene labels
+        scenes = {}
+        for path, label in zip(group_paths, labels):
+            if label not in scenes:
+                scenes[label] = []
+            scenes[label].append(path)
+
         cluster_assignment = {}
         global_cluster_counter = 0
 
-        for root, group_paths in groups.items():
-            # If single photo group, just assign it a unique cluster
-            if len(group_paths) == 1:
-                cluster_assignment[group_paths[0]] = global_cluster_counter
-                global_cluster_counter += 1
+        # 3. Process each scene
+        for label, scene_paths in scenes.items():
+            if label == -1 or len(scene_paths) == 1:
+                # Noise/Anomaly or single-photo scene: assign each path a unique cluster ID
+                for p in scene_paths:
+                    cluster_assignment[p] = global_cluster_counter
+                    global_cluster_counter += 1
                 continue
 
-            # Run DBSCAN on this sub-group to separate subtle scene variations
-            group_embeddings = np.array([embeddings[p] for p in group_paths])
-            
-            if HAS_SKLEARN_DBSCAN:
-                try:
-                    db = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
-                    labels = db.fit_predict(group_embeddings).tolist()
-                except Exception:
-                    labels = custom_dbscan(group_embeddings, eps=eps, min_samples=min_samples)
-            else:
-                labels = custom_dbscan(group_embeddings, eps=eps, min_samples=min_samples)
+            # Within this scene group, run dHash Union-Find to group identical bursts
+            uf = UnionFind(scene_paths)
+            m = len(scene_paths)
+            for i in range(m):
+                for j in range(i + 1, m):
+                    p1, p2 = scene_paths[i], scene_paths[j]
+                    dist = bin(dhashes[p1] ^ dhashes[p2]).count('1')
+                    if dist <= 10:
+                        uf.union(p1, p2)
 
-            # Map DBSCAN labels to unique cluster IDs
-            local_to_global = {}
-            for fp, label in zip(group_paths, labels):
-                if label == -1:
-                    # Noise/Anomaly, assign its own cluster
-                    cluster_assignment[fp] = global_cluster_counter
-                    global_cluster_counter += 1
-                else:
-                    if label not in local_to_global:
-                        local_to_global[label] = global_cluster_counter
-                        global_cluster_counter += 1
-                    cluster_assignment[fp] = local_to_global[label]
+            # Retrieve burst groups from Union-Find inside the scene
+            burst_groups = {}
+            for p in scene_paths:
+                root = uf.find(p)
+                if root not in burst_groups:
+                    burst_groups[root] = []
+                burst_groups[root].append(p)
+
+            # Assign each burst group a unique cluster ID
+            for root, burst_paths in burst_groups.items():
+                for p in burst_paths:
+                    cluster_assignment[p] = global_cluster_counter
+                global_cluster_counter += 1
 
         return cluster_assignment
 
@@ -732,125 +736,138 @@ class PhotoAnalyzer:
         Checks for human subjects, tracks exact facial eye landmarks (EAR) and mouth corners (Smile).
         """
         if self.engine == "yolov8" and HAS_YOLO:
-            return self.analyze_faces_yolo(rgb_image)
+            faces_data = self.analyze_faces_yolo(rgb_image)
+        elif not HAS_MEDIAPIPE or self.face_mesh is None:
+            faces_data = self.analyze_faces_opencv(rgb_image)
+        else:
+            h, w = rgb_image.shape[:2]
+            results = self.face_mesh.process(rgb_image)
+            faces_data = []
+
+            if results.multi_face_landmarks:
+                for i, face_landmarks in enumerate(results.multi_face_landmarks):
+                    coords = np.array([[lm.x * w, lm.y * h, lm.z * w] for lm in face_landmarks.landmark])
+                    
+                    # Face boundary box
+                    x_min, y_min = np.min(coords[:, :2], axis=0)
+                    x_max, y_max = np.max(coords[:, :2], axis=0)
+                    box = {
+                        "x": float(max(0, x_min)),
+                        "y": float(max(0, y_min)),
+                        "width": float(min(w - x_min, x_max - x_min)),
+                        "height": float(min(h - y_min, y_max - y_min))
+                    }
+
+                    # --- Eye Aspect Ratio (EAR) Mappings ---
+                    # Canonical MediaPipe Face Mesh landmark topology indices
+                    right_eye = [33, 159, 158, 133, 153, 145]
+                    left_eye = [362, 380, 374, 263, 386, 385]
+
+                    left_ear = self.calculate_ear(coords, left_eye)
+                    right_ear = self.calculate_ear(coords, right_eye)
+                    avg_ear = (left_ear + right_ear) / 2.0
+                    
+                    # EAR threshold evaluation (normal open 0.20-0.35, closed < 0.16)
+                    # Raw eye score
+                    eye_score = max(0.0, min(100.0, (avg_ear - 0.13) / (0.28 - 0.13) * 100.0))
+                    eyes_closed = avg_ear < 0.165
+
+                    # --- Smile Score Expression Tracking ---
+                    # Horizontal corners of mouth: 61 (right), 291 (left)
+                    # Vertical lip borders: 13 (upper inner), 14 (lower inner)
+                    p61 = coords[61]
+                    p291 = coords[291]
+                    p13 = coords[13]
+                    p14 = coords[14]
+
+                    mouth_width = np.linalg.norm(p61 - p291)
+                    lip_center_y = (p13[1] + p14[1]) / 2.0
+                    corners_y = (p61[1] + p291[1]) / 2.0
+                    
+                    # Height of face to normalize
+                    face_height = box["height"] if box["height"] > 0 else h * 0.2
+                    
+                    # Elevation ratio (lifting corners of mouth creates smile)
+                    # lip_center_y > corners_y when corners are pulled upward
+                    elevation = (lip_center_y - corners_y) / max(0.001, face_height)
+                    
+                    # Map to smile percentage: normal neutral is slightly negative or near 0 (-0.02 to 0.02)
+                    # Full smile reaches 0.08+
+                    smile_score = max(0.0, min(100.0, (elevation + 0.02) / 0.1 * 100.0))
+
+                    # --- Head Pose Estimation ---
+                    model_points = np.array([
+                        (0.0, 0.0, 0.0),             # Nose tip
+                        (0.0, -330.0, -65.0),        # Chin
+                        (-225.0, 170.0, -135.0),     # Left eye left corner
+                        (225.0, 170.0, -135.0),      # Right eye right corner
+                        (-150.0, -150.0, -125.0),    # Left mouth corner
+                        (150.0, -150.0, -125.0)      # Right mouth corner
+                    ])
+                    image_points = np.array([
+                        coords[1][:2], coords[152][:2], coords[33][:2], coords[263][:2], coords[61][:2], coords[291][:2]
+                    ], dtype="double")
+
+                    focal_len = w
+                    center = (w / 2, h / 2)
+                    camera_matrix = np.array([[focal_len, 0, center[0]], [0, focal_len, center[1]], [0, 0, 1]], dtype="double")
+                    dist_coeffs = np.zeros((4, 1))
+                    
+                    yaw, pitch, roll = 0.0, 0.0, 0.0
+                    pose_score = 100.0
+
+                    success, rotation_vector, translation_vector = cv2.solvePnP(
+                        model_points, image_points, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE
+                    )
+                    if success:
+                        rmat, _ = cv2.Rodrigues(rotation_vector)
+                        sy = math.sqrt(rmat[0,0] * rmat[0,0] +  rmat[1,0] * rmat[1,0])
+                        if sy >= 1e-6:
+                            pitch = math.atan2(rmat[2,1], rmat[2,2])
+                            yaw = math.atan2(-rmat[2,0], sy)
+                            roll = math.atan2(rmat[1,0], rmat[0,0])
+                        else:
+                            pitch = math.atan2(-rmat[1,2], rmat[1,1])
+                            yaw = math.atan2(-rmat[2,0], sy)
+                            roll = 0
+                        
+                        yaw = math.degrees(yaw)
+                        pitch = math.degrees(pitch)
+                        roll = math.degrees(roll)
+                        
+                        # Pose accuracy score: deduct points for high yaw/pitch angles
+                        pose_dev = math.sqrt(yaw**2 + pitch**2)
+                        pose_score = max(0.0, min(100.0, 100.0 - (pose_dev / 40.0) * 100.0))
+
+                    faces_data.append({
+                        "face_index": i,
+                        "box": box,
+                        "ear": float(round(avg_ear, 3)),
+                        "eye_score": float(round(eye_score, 1)),
+                        "eyes_closed": bool(eyes_closed),
+                        "smile_score": float(round(smile_score, 1)),
+                        "pose": {
+                            "yaw": float(round(yaw, 1)),
+                            "pitch": float(round(pitch, 1)),
+                            "roll": float(round(roll, 1))
+                        },
+                        "pose_score": float(round(pose_score, 1))
+                    })
+
+        # Apply absolute size and relative size filtering to ALL engines
+        if faces_data:
+            # 1. Filter out absolute small faces (< 100px)
+            faces_data = [f for f in faces_data if f["box"]["width"] >= 100 and f["box"]["height"] >= 100]
             
-        if not HAS_MEDIAPIPE or self.face_mesh is None:
-            return self.analyze_faces_opencv(rgb_image)
-
-        h, w = rgb_image.shape[:2]
-        results = self.face_mesh.process(rgb_image)
-        faces_data = []
-
-        if results.multi_face_landmarks:
-            for i, face_landmarks in enumerate(results.multi_face_landmarks):
-                coords = np.array([[lm.x * w, lm.y * h, lm.z * w] for lm in face_landmarks.landmark])
+            # 2. Filter relative to largest face
+            if faces_data:
+                max_w = max(f["box"]["width"] for f in faces_data)
+                faces_data = [f for f in faces_data if f["box"]["width"] >= max_w * 0.25]
                 
-                # Face boundary box
-                x_min, y_min = np.min(coords[:, :2], axis=0)
-                x_max, y_max = np.max(coords[:, :2], axis=0)
-                box = {
-                    "x": float(max(0, x_min)),
-                    "y": float(max(0, y_min)),
-                    "width": float(min(w - x_min, x_max - x_min)),
-                    "height": float(min(h - y_min, y_max - y_min))
-                }
-
-                # --- Eye Aspect Ratio (EAR) Mappings ---
-                # Canonical MediaPipe Face Mesh landmark topology indices
-                right_eye = [33, 159, 158, 133, 153, 145]
-                left_eye = [362, 380, 374, 263, 386, 385]
-
-                left_ear = self.calculate_ear(coords, left_eye)
-                right_ear = self.calculate_ear(coords, right_eye)
-                avg_ear = (left_ear + right_ear) / 2.0
+            # 3. Reset face index
+            for idx, f in enumerate(faces_data):
+                f["face_index"] = idx
                 
-                # EAR threshold evaluation (normal open 0.20-0.35, closed < 0.16)
-                # Raw eye score
-                eye_score = max(0.0, min(100.0, (avg_ear - 0.13) / (0.28 - 0.13) * 100.0))
-                eyes_closed = avg_ear < 0.165
-
-                # --- Smile Score Expression Tracking ---
-                # Horizontal corners of mouth: 61 (right), 291 (left)
-                # Vertical lip borders: 13 (upper inner), 14 (lower inner)
-                p61 = coords[61]
-                p291 = coords[291]
-                p13 = coords[13]
-                p14 = coords[14]
-
-                mouth_width = np.linalg.norm(p61 - p291)
-                lip_center_y = (p13[1] + p14[1]) / 2.0
-                corners_y = (p61[1] + p291[1]) / 2.0
-                
-                # Height of face to normalize
-                face_height = box["height"] if box["height"] > 0 else h * 0.2
-                
-                # Elevation ratio (lifting corners of mouth creates smile)
-                # lip_center_y > corners_y when corners are pulled upward
-                elevation = (lip_center_y - corners_y) / max(0.001, face_height)
-                
-                # Map to smile percentage: normal neutral is slightly negative or near 0 (-0.02 to 0.02)
-                # Full smile reaches 0.08+
-                smile_score = max(0.0, min(100.0, (elevation + 0.02) / 0.1 * 100.0))
-
-                # --- Head Pose Estimation ---
-                model_points = np.array([
-                    (0.0, 0.0, 0.0),             # Nose tip
-                    (0.0, -330.0, -65.0),        # Chin
-                    (-225.0, 170.0, -135.0),     # Left eye left corner
-                    (225.0, 170.0, -135.0),      # Right eye right corner
-                    (-150.0, -150.0, -125.0),    # Left mouth corner
-                    (150.0, -150.0, -125.0)      # Right mouth corner
-                ])
-                image_points = np.array([
-                    coords[1][:2], coords[152][:2], coords[33][:2], coords[263][:2], coords[61][:2], coords[291][:2]
-                ], dtype="double")
-
-                focal_len = w
-                center = (w / 2, h / 2)
-                camera_matrix = np.array([[focal_len, 0, center[0]], [0, focal_len, center[1]], [0, 0, 1]], dtype="double")
-                dist_coeffs = np.zeros((4, 1))
-                
-                yaw, pitch, roll = 0.0, 0.0, 0.0
-                pose_score = 100.0
-
-                success, rotation_vector, translation_vector = cv2.solvePnP(
-                    model_points, image_points, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE
-                )
-                if success:
-                    rmat, _ = cv2.Rodrigues(rotation_vector)
-                    sy = math.sqrt(rmat[0,0] * rmat[0,0] +  rmat[1,0] * rmat[1,0])
-                    if sy >= 1e-6:
-                        pitch = math.atan2(rmat[2,1], rmat[2,2])
-                        yaw = math.atan2(-rmat[2,0], sy)
-                        roll = math.atan2(rmat[1,0], rmat[0,0])
-                    else:
-                        pitch = math.atan2(-rmat[1,2], rmat[1,1])
-                        yaw = math.atan2(-rmat[2,0], sy)
-                        roll = 0
-                    
-                    yaw = math.degrees(yaw)
-                    pitch = math.degrees(pitch)
-                    roll = math.degrees(roll)
-                    
-                    # Pose accuracy score: deduct points for high yaw/pitch angles
-                    pose_dev = math.sqrt(yaw**2 + pitch**2)
-                    pose_score = max(0.0, min(100.0, 100.0 - (pose_dev / 40.0) * 100.0))
-
-                faces_data.append({
-                    "face_index": i,
-                    "box": box,
-                    "ear": float(round(avg_ear, 3)),
-                    "eye_score": float(round(eye_score, 1)),
-                    "eyes_closed": bool(eyes_closed),
-                    "smile_score": float(round(smile_score, 1)),
-                    "pose": {
-                        "yaw": float(round(yaw, 1)),
-                        "pitch": float(round(pitch, 1)),
-                        "roll": float(round(roll, 1))
-                    },
-                    "pose_score": float(round(pose_score, 1))
-                })
-
         return faces_data
 
     def analyze_faces_opencv(self, rgb_image):
@@ -1099,8 +1116,8 @@ class PhotoAnalyzer:
             # Preprocess for CLIP
             resized = cv2.resize(rgb_image, (224, 224))
             inp = resized.astype(np.float32) / 255.0
-            mean = np.array([0.48145466, 0.4578275, 0.40821073])
-            std = np.array([0.26862954, 0.26130258, 0.27577711])
+            mean = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32)
+            std = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
             inp = (inp - mean) / std
             inp = inp.transpose(2, 0, 1)
             inp = np.expand_dims(inp, axis=0)
@@ -1126,8 +1143,8 @@ class PhotoAnalyzer:
                 # Preprocess for NIMA: MobileNet/VGG expects 224x224
                 resized = cv2.resize(rgb_image, (224, 224))
                 inp = resized.astype(np.float32) / 255.0
-                mean = np.array([0.485, 0.456, 0.406])
-                std = np.array([0.229, 0.224, 0.225])
+                mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+                std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
                 inp = (inp - mean) / std
                 inp = inp.transpose(2, 0, 1)
                 inp = np.expand_dims(inp, axis=0)

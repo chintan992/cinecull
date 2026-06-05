@@ -4,7 +4,7 @@ export function ExifMetadata({ metadata }: { metadata: ExifMetadataType }) {
   const hasData = Object.values(metadata).some((v) => v !== null);
 
   if (!hasData) {
-    return <p className="text-[9px] text-chrome-500 italic font-mono">No EXIF data found.</p>;
+    return <p className="text-[10px] text-chrome-500 italic">No EXIF data found.</p>;
   }
 
   const rows = [
@@ -17,11 +17,11 @@ export function ExifMetadata({ metadata }: { metadata: ExifMetadataType }) {
   ].filter((r) => r.value);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {rows.map(({ label, value }) => (
-        <div key={label} className="flex justify-between text-[8px] font-mono">
+        <div key={label} className="flex justify-between text-[9px] font-mono">
           <span className="text-chrome-500 uppercase tracking-wider">{label}</span>
-          <span className="text-chrome-300 truncate ml-2 max-w-[120px]" title={value || undefined}>
+          <span className="text-chrome-200 truncate ml-2 max-w-[140px]" title={value || undefined}>
             {value}
           </span>
         </div>

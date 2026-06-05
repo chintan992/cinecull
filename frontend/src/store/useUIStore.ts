@@ -12,6 +12,8 @@ interface UIState {
   engine: string;
   hasYolo: boolean;
   connected: boolean;
+  analysisPaused: boolean;
+  analysisQueueLen: number;
   toasts: Toast[];
 
   setViewMode: (mode: ViewMode) => void;
@@ -26,6 +28,8 @@ interface UIState {
   setCullingMode: (mode: CullingMode) => void;
   setEngine: (engine: string, hasYolo: boolean) => void;
   setConnected: (connected: boolean) => void;
+  setAnalysisPaused: (paused: boolean) => void;
+  setAnalysisQueueLen: (len: number) => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
 }
@@ -49,6 +53,8 @@ export const useUIStore = create<UIState>((set) => ({
   engine: 'standard',
   hasYolo: false,
   connected: false,
+  analysisPaused: false,
+  analysisQueueLen: 0,
   toasts: [],
 
   setViewMode: (mode) => set({ viewMode: mode }),
@@ -63,6 +69,8 @@ export const useUIStore = create<UIState>((set) => ({
   setCullingMode: (mode) => set({ cullingMode: mode }),
   setEngine: (engine, hasYolo) => set({ engine, hasYolo }),
   setConnected: (connected) => set({ connected }),
+  setAnalysisPaused: (paused) => set({ analysisPaused: paused }),
+  setAnalysisQueueLen: (len) => set({ analysisQueueLen: len }),
 
   addToast: (toast) => {
     const id = String(++toastId);

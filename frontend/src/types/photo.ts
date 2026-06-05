@@ -74,7 +74,7 @@ export interface Photo {
 }
 
 export interface WSMessage {
-  type: 'INIT' | 'PHOTO_DETECTED' | 'PHOTO_ANALYZED' | 'LIST_UPDATED' | 'RECOMMENDATION_UPDATED';
+  type: 'INIT' | 'PHOTO_DETECTED' | 'PHOTO_ANALYZED' | 'LIST_UPDATED' | 'RECOMMENDATION_UPDATED' | 'QUEUE_STATUS';
   data?: Photo;
   photos?: Photo[];
   watch_dir?: string;
@@ -82,4 +82,8 @@ export interface WSMessage {
   filename?: string;
   filepath?: string;
   recommendation?: Recommendation;
+  analysis_paused?: boolean;
+  analysis_queue_len?: number;
+  paused?: boolean;
+  queue_len?: number;
 }

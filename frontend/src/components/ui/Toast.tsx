@@ -10,10 +10,10 @@ const icons = {
 };
 
 const colors = {
-  success: 'border-keep-500/20 text-keep-400',
-  error: 'border-reject-500/20 text-reject-400',
-  info: 'border-accent-500/20 text-accent-400',
-  warning: 'border-review-500/20 text-review-400',
+  success: 'border-keep-500/30 text-keep-400',
+  error: 'border-reject-500/30 text-reject-400',
+  info: 'border-accent-500/30 text-accent-400',
+  warning: 'border-review-500/30 text-review-400',
 };
 
 export function ToastContainer() {
@@ -32,15 +32,15 @@ export function ToastContainer() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, x: 80, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-chrome-900/95 backdrop-blur-sm border ${colors[toast.type]} shadow-xl max-w-xs`}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl bg-chrome-900/95 backdrop-blur-sm border ${colors[toast.type]} shadow-xl max-w-xs`}
             >
-              <Icon size={14} className="shrink-0" />
-              <span className="text-[11px] font-medium flex-1 leading-snug">{toast.message}</span>
+              <Icon size={15} className="shrink-0" />
+              <span className="text-xs font-medium flex-1 leading-snug">{toast.message}</span>
               <button
                 onClick={() => removeToast(toast.id)}
                 className="shrink-0 p-0.5 rounded hover:bg-chrome-700 transition-colors"
               >
-                <X size={10} className="text-chrome-400" />
+                <X size={11} className="text-chrome-400" />
               </button>
             </motion.div>
           );

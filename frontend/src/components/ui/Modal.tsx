@@ -35,19 +35,19 @@ export function Modal({ open, onClose, title, children, icon }: ModalProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="bg-chrome-900 border border-chrome-700 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+            className="bg-chrome-900 border border-chrome-700/50 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-chrome-800">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-chrome-800/50">
+              <div className="flex items-center gap-2.5">
                 {icon}
                 <h3 className="text-xs font-bold uppercase tracking-widest text-chrome-100">{title}</h3>
               </div>
               <button
                 onClick={onClose}
-                className="p-1 rounded hover:bg-chrome-800 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-chrome-800 transition-colors"
               >
-                <X size={14} className="text-chrome-400" />
+                <X size={15} className="text-chrome-400" />
               </button>
             </div>
             <div className="p-5">{children}</div>

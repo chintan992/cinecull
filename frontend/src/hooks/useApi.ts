@@ -9,6 +9,8 @@ export function useApi() {
   const setWatchDir = useUIStore((s) => s.setWatchDir);
   const setCullingMode = useUIStore((s) => s.setCullingMode);
   const setEngine = useUIStore((s) => s.setEngine);
+  const setAnalysisPaused = useUIStore((s) => s.setAnalysisPaused);
+  const setAnalysisQueueLen = useUIStore((s) => s.setAnalysisQueueLen);
 
   useEffect(() => {
     async function init() {
@@ -23,6 +25,8 @@ export function useApi() {
         setWatchDir(config.watch_dir);
         setCullingMode(config.culling_mode);
         setEngine(engine.engine, engine.has_yolo);
+        if (config.analysis_paused !== undefined) setAnalysisPaused(config.analysis_paused);
+        if (config.analysis_queue_len !== undefined) setAnalysisQueueLen(config.analysis_queue_len);
 
         if (photos.length > 0) {
           selectPhoto(photos[0].filepath);
