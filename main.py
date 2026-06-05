@@ -456,14 +456,8 @@ async def download_model(req: ModelDownloadRequest):
     if model_downloader.is_downloaded(req.model_id):
         return {"status": "already_downloaded", "model_id": req.model_id}
 
-    def on_progress(progress):
-        pass
-
-    success = model_downloader.download_model(req.model_id, progress_callback=on_progress)
-    if success:
-        return {"status": "success", "model_id": req.model_id}
-    else:
-        raise HTTPException(status_code=500, detail=f"Failed to download model {req.model_id}")
+    model_downloader.download_model_async(req.model_id)
+    return {"status": "started", "model_id": req.model_id}
 
 
 @app.get("/api/models/download/progress")

@@ -12,7 +12,12 @@ try:
     pynvml.nvmlInit()
     HAS_PYNVML = True
 except Exception:
-    HAS_PYNVML = False
+    try:
+        import nvidia_ml_py as pynvml
+        pynvml.nvmlInit()
+        HAS_PYNVML = True
+    except Exception:
+        HAS_PYNVML = False
 
 # Try torch.cuda as fallback
 try:

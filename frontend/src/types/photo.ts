@@ -109,10 +109,14 @@ export interface DownloadProgress {
   model_id: string;
   total_bytes: number;
   downloaded_bytes: number;
+  total_mb: number;
+  downloaded_mb: number;
+  remaining_mb: number;
   progress_pct: number;
   status: string;
   error_message: string;
   speed_mbps: number;
+  eta_seconds: number | null;
 }
 
 export interface Photo {

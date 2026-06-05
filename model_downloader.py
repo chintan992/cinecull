@@ -59,14 +59,28 @@ class DownloadProgress:
 
     def to_dict(self) -> Dict[str, Any]:
         with self._lock:
+            downloaded_mb = round(self.downloaded_bytes / (1024 * 1024), 2)
+            total_mb = round(self.total_bytes / (1024 * 1024), 2)
+            remaining_mb = round(max(0, self.total_bytes - self.downloaded_bytes) / (1024 * 1024), 2)
+            progress_pct = round((self.downloaded_bytes / self.total_bytes * 100), 1) if self.total_bytes > 0 else 0
+
+            eta_seconds = None
+            if self.speed_bps > 0 and self.total_bytes > 0:
+                remaining_bytes = max(0, self.total_bytes - self.downloaded_bytes)
+                eta_seconds = round(remaining_bytes / self.speed_bps)
+
             return {
                 "model_id": self.model_id,
                 "total_bytes": self.total_bytes,
                 "downloaded_bytes": self.downloaded_bytes,
-                "progress_pct": round((self.downloaded_bytes / self.total_bytes * 100), 1) if self.total_bytes > 0 else 0,
+                "total_mb": total_mb,
+                "downloaded_mb": downloaded_mb,
+                "remaining_mb": remaining_mb,
+                "progress_pct": progress_pct,
                 "status": self.status,
                 "error_message": self.error_message,
-                "speed_mbps": round(self.speed_bps / (1024 * 1024), 2)
+                "speed_mbps": round(self.speed_bps / (1024 * 1024), 2),
+                "eta_seconds": eta_seconds
             }
 
 

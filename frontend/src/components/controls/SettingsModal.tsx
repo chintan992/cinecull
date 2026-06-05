@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Cpu, Download, Check, AlertTriangle, Zap, Eye, Layers, HardDrive, RefreshCw, Info, Settings } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/utils';
-import type { ModelInfo, ModelTask, HardwareInfo } from '../../types/photo';
+import type { ModelInfo, ModelTask, HardwareInfo, DownloadProgress } from '../../types/photo';
 
 const TASK_CONFIG: { task: ModelTask; label: string; icon: typeof Cpu; description: string }[] = [
   { task: 'aesthetic', label: 'Aesthetic Scoring', icon: Eye, description: 'Models that evaluate photo beauty and composition quality' },
@@ -32,6 +32,14 @@ const SPEED_BADGES: Record<string, string> = {
   slow: 'bg-orange-500/20 text-orange-300',
   very_slow: 'bg-red-500/20 text-red-300',
 };
+
+function formatEta(seconds: number | null): string {
+  if (seconds === null || seconds <= 0) return '--:--';
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s}s`;
+}
 
 function HardwarePanel({ hardware }: { hardware: HardwareInfo }) {
   const vramPct = hardware.vram_mb > 0 ? Math.min(100, (hardware.utilization?.vram_used_mb || 0) / hardware.vram_mb * 100) : 0;
@@ -90,28 +98,44 @@ function HardwarePanel({ hardware }: { hardware: HardwareInfo }) {
   );
 }
 
+function DownloadProgressBar({ progress }: { progress: DownloadProgress }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="h-2 bg-chrome-800 rounded-full overflow-hidden">
+        <motion.div
+          className="h-full bg-gradient-to-r from-accent-500 to-blue-500 rounded-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${progress.progress_pct}%` }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+        />
+      </div>
+      <div className="flex items-center justify-between text-[9px]">
+        <span className="text-chrome-400 font-mono">
+          {progress.downloaded_mb} / {progress.total_mb} MB
+        </span>
+        <div className="flex items-center gap-2 text-chrome-500">
+          <span>{progress.speed_mbps} MB/s</span>
+          <span className="text-accent-400 font-mono">{formatEta(progress.eta_seconds)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModelCard({
   model,
   isActive,
+  downloadProgress,
   onSelect,
   onDownload,
 }: {
   model: ModelInfo;
   isActive: boolean;
+  downloadProgress: DownloadProgress | null;
   onSelect: () => void;
   onDownload: () => void;
 }) {
-  const [downloading, setDownloading] = useState(false);
-
-  async function handleDownload() {
-    setDownloading(true);
-    try {
-      await onDownload();
-    } finally {
-      setDownloading(false);
-    }
-  }
-
+  const isDownloading = downloadProgress?.status === 'downloading';
   const isDisabled = !model.compatible && model.has_file;
   const isBuiltIn = !model.has_file;
 
@@ -120,12 +144,13 @@ function ModelCard({
       className={cn(
         'relative rounded-xl border p-3 transition-all',
         isActive && 'border-accent-500/60 bg-accent-500/5 ring-1 ring-accent-500/20',
-        !isActive && model.downloaded && !isDisabled && 'border-chrome-700/50 bg-chrome-850/50 hover:border-chrome-600/50 cursor-pointer',
-        !isActive && !model.downloaded && !isDisabled && 'border-chrome-800/50 bg-chrome-900/50',
+        isDownloading && 'border-blue-500/40 bg-blue-500/5',
+        !isActive && !isDownloading && model.downloaded && !isDisabled && 'border-chrome-700/50 bg-chrome-850/50 hover:border-chrome-600/50 cursor-pointer',
+        !isActive && !isDownloading && !model.downloaded && !isDisabled && 'border-chrome-800/50 bg-chrome-900/50',
         isDisabled && 'border-reject-500/20 bg-chrome-900/30 opacity-60',
         isBuiltIn && model.downloaded && !isActive && 'border-chrome-700/50 bg-chrome-850/50'
       )}
-      onClick={() => !isDisabled && (model.downloaded || isBuiltIn) && onSelect()}
+      onClick={() => !isDisabled && !isDownloading && (model.downloaded || isBuiltIn) && onSelect()}
     >
       {isActive && (
         <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-accent-500 flex items-center justify-center shadow-lg shadow-accent-500/30">
@@ -168,6 +193,19 @@ function ModelCard({
         </div>
       )}
 
+      {isDownloading && downloadProgress && (
+        <div className="mb-2">
+          <DownloadProgressBar progress={downloadProgress} />
+        </div>
+      )}
+
+      {downloadProgress?.status === 'error' && (
+        <div className="flex items-center gap-1 text-[9px] text-reject-400 mb-2">
+          <AlertTriangle size={9} />
+          <span className="line-clamp-1">{downloadProgress.error_message || 'Download failed'}</span>
+        </div>
+      )}
+
       {!isDisabled && !isActive && (
         <div className="flex items-center gap-1.5">
           {(model.downloaded || isBuiltIn) ? (
@@ -179,16 +217,16 @@ function ModelCard({
             </button>
           ) : (
             <button
-              onClick={(e) => { e.stopPropagation(); handleDownload(); }}
-              disabled={downloading}
+              onClick={(e) => { e.stopPropagation(); onDownload(); }}
+              disabled={isDownloading}
               className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-accent-500/20 hover:bg-accent-500/30 text-[10px] font-medium text-accent-300 transition-colors disabled:opacity-50"
             >
-              {downloading ? (
+              {isDownloading ? (
                 <RefreshCw size={10} className="animate-spin" />
               ) : (
                 <Download size={10} />
               )}
-              {downloading ? 'Downloading...' : 'Download'}
+              {isDownloading ? `${downloadProgress?.progress_pct ?? 0}%` : 'Download'}
             </button>
           )}
         </div>
@@ -207,18 +245,72 @@ export function SettingsModal() {
   const setAvailableModels = useUIStore((s) => s.setAvailableModels);
   const addToast = useUIStore((s) => s.addToast);
 
-  async function refreshModels() {
-    try {
-      const [modelsRes, activeRes] = await Promise.all([
-        api.getModels(),
-        api.getActiveModels(),
-      ]);
-      setAvailableModels(modelsRes.models);
-      setActiveModels(activeRes.active_models);
-    } catch (err) {
-      console.error('Failed to refresh models:', err);
+  const [downloadProgressMap, setDownloadProgressMap] = useState<Record<string, DownloadProgress>>({});
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const completedRef = useRef<Set<string>>(new Set());
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
     }
-  }
+  }, []);
+
+  const pollProgress = useCallback(async () => {
+    try {
+      const res = await api.getDownloadProgress();
+      const map: Record<string, DownloadProgress> = {};
+      let hasActive = false;
+
+      for (const p of res.downloads) {
+        map[p.model_id] = p;
+
+        if (p.status === 'downloading') {
+          hasActive = true;
+        }
+
+        if (p.status === 'complete' && !completedRef.current.has(p.model_id)) {
+          completedRef.current.add(p.model_id);
+          addToast({ message: `Downloaded ${p.model_id} (${p.total_mb} MB)`, type: 'success' });
+        }
+
+        if (p.status === 'error' && !completedRef.current.has(`err_${p.model_id}`)) {
+          completedRef.current.add(`err_${p.model_id}`);
+          addToast({ message: `Failed to download ${p.model_id}: ${p.error_message}`, type: 'error' });
+        }
+      }
+
+      setDownloadProgressMap(map);
+
+      if (!hasActive) {
+        stopPolling();
+        const [modelsRes, activeRes] = await Promise.all([
+          api.getModels(),
+          api.getActiveModels(),
+        ]);
+        setAvailableModels(modelsRes.models);
+        setActiveModels(activeRes.active_models);
+      }
+    } catch {
+      // polling failure is silent
+    }
+  }, [addToast, setAvailableModels, setActiveModels, stopPolling]);
+
+  const startPolling = useCallback(() => {
+    if (pollingRef.current) return;
+    pollProgress();
+    pollingRef.current = setInterval(pollProgress, 500);
+  }, [pollProgress]);
+
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
+
+  useEffect(() => {
+    if (!open) {
+      stopPolling();
+    }
+  }, [open, stopPolling]);
 
   async function handleSelectModel(task: ModelTask, modelId: string) {
     try {
@@ -236,10 +328,9 @@ export function SettingsModal() {
   async function handleDownloadModel(modelId: string) {
     try {
       await api.downloadModel(modelId);
-      addToast({ message: `Downloaded ${modelId}`, type: 'success' });
-      await refreshModels();
+      startPolling();
     } catch (err: any) {
-      addToast({ message: err.message || 'Failed to download model', type: 'error' });
+      addToast({ message: err.message || 'Failed to start download', type: 'error' });
     }
   }
 
@@ -247,6 +338,7 @@ export function SettingsModal() {
     try {
       const result = await api.predownloadModels();
       addToast({ message: `Pre-downloading ${result.threads} models for ${result.tier} tier...`, type: 'info' });
+      startPolling();
     } catch (err: any) {
       addToast({ message: err.message || 'Failed to start pre-download', type: 'error' });
     }
@@ -316,6 +408,7 @@ export function SettingsModal() {
                           key={model.id}
                           model={model}
                           isActive={activeModels[task] === model.id}
+                          downloadProgress={downloadProgressMap[model.id] || null}
                           onSelect={() => handleSelectModel(task, model.id)}
                           onDownload={() => handleDownloadModel(model.id)}
                         />
