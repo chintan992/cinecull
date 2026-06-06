@@ -40,6 +40,10 @@ call venv\Scripts\activate.bat
 echo Installing Python dependencies...
 pip install -r requirements.txt
 
+:: Validate and update model URLs (runs every 24 hours)
+echo Validating model download URLs...
+python scripts\update_model_urls.py
+
 :: Build frontend
 echo Building frontend...
 cd frontend

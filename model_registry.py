@@ -13,7 +13,7 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
     "aesthetic": {
         "nima_mobile": {
             "display_name": "NIMA MobileNet",
-            "description": "Lightweight aesthetic scoring (MobileNetV2 backbone)",
+            "description": "Lightweight aesthetic scoring (MobileNetV2 backbone) - Requires manual ONNX conversion",
             "file": "nima_mobile.onnx",
             "size_mb": 16,
             "vram_required_mb": 512,
@@ -21,15 +21,15 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
             "speed": "fast",
             "quality_score": 30,
             "speed_score": 95,
-            "url": "https://github.com/titu1994/neural-image-assessment/releases/download/v1.0/nima_mobile.onnx",
+            "url": None,  # Requires manual ONNX conversion from PyTorch
             "checksum": None,
             "input_size": [224, 224],
             "output_type": "distribution_10",
-            "tags": ["lightweight", "fast", "basic"]
+            "tags": ["lightweight", "fast", "basic", "requires_conversion"]
         },
         "nima": {
             "display_name": "NIMA InceptionResNet",
-            "description": "Standard aesthetic scoring (InceptionResNetV2 backbone)",
+            "description": "Standard aesthetic scoring (InceptionResNetV2 backbone) - Requires manual ONNX conversion",
             "file": "nima.onnx",
             "size_mb": 90,
             "vram_required_mb": 1024,
@@ -37,31 +37,63 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
             "speed": "medium",
             "quality_score": 60,
             "speed_score": 60,
-            "url": "https://github.com/titu1994/neural-image-assessment/releases/download/v1.0/nima_inception.onnx",
+            "url": None,  # Requires manual ONNX conversion from PyTorch
             "checksum": None,
             "input_size": [299, 299],
             "output_type": "distribution_10",
-            "tags": ["standard", "balanced"]
+            "tags": ["standard", "balanced", "requires_conversion"]
         },
         "clip_aesthetic": {
             "display_name": "CLIP ViT-L Aesthetic",
-            "description": "CLIP-based aesthetic predictor (ViT-L/14 + MLP head)",
-            "file": "clip_aesthetic.onnx",
-            "size_mb": 850,
-            "vram_required_mb": 2048,
+            "description": "CLIP-based aesthetic predictor (ViT-L/14) - ONNX version from onnx-community",
+            "file": "clip_vit_large.onnx",
+            "size_mb": 1700,
+            "vram_required_mb": 4096,
             "quality": "excellent",
             "speed": "medium",
             "quality_score": 80,
             "speed_score": 50,
-            "url": "https://huggingface.co/openai/clip-vit-large-patch14/resolve/main/model.onnx",
+            "url": "https://huggingface.co/onnx-community/clip-vit-large-patch14-ONNX/resolve/main/onnx/model.onnx",
             "checksum": None,
             "input_size": [224, 224],
-            "output_type": "score_1_10",
+            "output_type": "embedding",
             "tags": ["clip", "high_quality", "popular"]
+        },
+        "clip_vit_base": {
+            "display_name": "CLIP ViT-B Aesthetic",
+            "description": "CLIP-based aesthetic predictor (ViT-B/32) - Lightweight ONNX version",
+            "file": "clip_vit_base.onnx",
+            "size_mb": 350,
+            "vram_required_mb": 2048,
+            "quality": "good",
+            "speed": "fast",
+            "quality_score": 65,
+            "speed_score": 75,
+            "url": "https://huggingface.co/onnx-community/clip-vit-base-patch32-ONNX/resolve/main/onnx/model.onnx",
+            "checksum": None,
+            "input_size": [224, 224],
+            "output_type": "embedding",
+            "tags": ["clip", "lightweight", "fast"]
+        },
+        "swin_iqa": {
+            "display_name": "Swin Transformer IQA",
+            "description": "Swin Transformer fine-tuned for image quality assessment",
+            "file": "swin_iqa.onnx",
+            "size_mb": 110,
+            "vram_required_mb": 1024,
+            "quality": "good",
+            "speed": "fast",
+            "quality_score": 70,
+            "speed_score": 80,
+            "url": "https://huggingface.co/onnx-community/swin-tiny-patch4-window7-224-finetuned-image_quality-ONNX/resolve/main/onnx/model.onnx",
+            "checksum": None,
+            "input_size": [224, 224],
+            "output_type": "score",
+            "tags": ["iqa", "swin", "quality_assessment"]
         },
         "laion_aesthetic_v2": {
             "display_name": "LAION Aesthetic v2",
-            "description": "SOTA aesthetic predictor trained on 100M+ images",
+            "description": "SOTA aesthetic predictor trained on 100M+ images - Requires manual ONNX conversion",
             "file": "laion_aesthetic_v2.onnx",
             "size_mb": 350,
             "vram_required_mb": 2048,
@@ -69,15 +101,15 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
             "speed": "medium",
             "quality_score": 90,
             "speed_score": 55,
-            "url": "https://huggingface.co/pharmapsychotic/clip-interrogator/resolve/main/salesforce_blip-opt-2.7b-coco-vqa-caption_extension.onnx",
+            "url": None,  # Requires manual ONNX conversion
             "checksum": None,
             "input_size": [224, 224],
             "output_type": "score_1_10",
-            "tags": ["sota", "laion", "recommended"]
+            "tags": ["sota", "laion", "recommended", "requires_conversion"]
         },
         "hyper_iqa": {
             "display_name": "HyperIQA",
-            "description": "Hypernetwork-based no-reference IQA (adapts to content)",
+            "description": "Hypernetwork-based no-reference IQA (adapts to content) - Requires manual ONNX conversion",
             "file": "hyper_iqa.onnx",
             "size_mb": 180,
             "vram_required_mb": 1536,
@@ -85,15 +117,15 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
             "speed": "fast",
             "quality_score": 85,
             "speed_score": 70,
-            "url": "https://huggingface.co/ssswww/hyper_iqa/resolve/main/model.onnx",
+            "url": None,  # Requires manual ONNX conversion
             "checksum": None,
             "input_size": [224, 224],
             "output_type": "score_1_5",
-            "tags": ["adaptive", "no_reference", "fast"]
+            "tags": ["adaptive", "no_reference", "fast", "requires_conversion"]
         },
         "musiq": {
             "display_name": "MUSIQ",
-            "description": "Multi-scale Image Quality (handles any resolution natively)",
+            "description": "Multi-scale Image Quality (handles any resolution natively) - Requires manual ONNX conversion",
             "file": "musiq.onnx",
             "size_mb": 280,
             "vram_required_mb": 3072,
@@ -101,15 +133,15 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
             "speed": "medium",
             "quality_score": 88,
             "speed_score": 45,
-            "url": "https://huggingface.co/google/musiq-koniq/resolve/main/model.onnx",
+            "url": None,  # Requires manual ONNX conversion
             "checksum": None,
             "input_size": [None, None],
             "output_type": "score_1_100",
-            "tags": ["multi_scale", "any_resolution", "google"]
+            "tags": ["multi_scale", "any_resolution", "google", "requires_conversion"]
         },
         "q_align": {
             "display_name": "Q-Align",
-            "description": "LLM-based quality alignment (highest accuracy, slowest)",
+            "description": "LLM-based quality alignment (highest accuracy, slowest) - Requires manual ONNX conversion",
             "file": "q_align.onnx",
             "size_mb": 4200,
             "vram_required_mb": 16384,
@@ -117,25 +149,25 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
             "speed": "slow",
             "quality_score": 98,
             "speed_score": 15,
-            "url": "https://huggingface.co/Q-Future/Q-Align/resolve/main/model.onnx",
+            "url": None,  # Requires manual ONNX conversion
             "checksum": None,
             "input_size": [336, 336],
             "output_type": "score_1_10",
-            "tags": ["llm", "highest_quality", "experimental"]
+            "tags": ["llm", "highest_quality", "experimental", "requires_conversion"]
         }
     },
     "embedding": {
         "dinov2_small": {
             "display_name": "DINOv2 Small",
-            "description": "Compact semantic embeddings (768-dim, 22M params)",
+            "description": "Compact semantic embeddings (384-dim, 22M params)",
             "file": "dinov2_small.onnx",
-            "size_mb": 86,
+            "size_mb": 88,
             "vram_required_mb": 1024,
             "quality": "good",
             "speed": "fast",
             "quality_score": 60,
             "speed_score": 90,
-            "url": "https://huggingface.co/facebook/dinov2-small/resolve/main/model.onnx",
+            "url": "https://huggingface.co/onnx-community/dinov2-small/resolve/main/onnx/model.onnx",
             "checksum": None,
             "input_size": [224, 224],
             "output_dim": 384,
@@ -151,7 +183,7 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
             "speed": "medium",
             "quality_score": 75,
             "speed_score": 65,
-            "url": "https://huggingface.co/facebook/dinov2-base/resolve/main/model.onnx",
+            "url": "https://huggingface.co/onnx-community/dinov2-base/resolve/main/onnx/model.onnx",
             "checksum": None,
             "input_size": [224, 224],
             "output_dim": 768,
@@ -167,7 +199,7 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
             "speed": "slow",
             "quality_score": 90,
             "speed_score": 35,
-            "url": "https://huggingface.co/facebook/dinov2-large/resolve/main/model.onnx",
+            "url": "https://huggingface.co/onnx-community/dinov2-large/resolve/main/onnx/model.onnx",
             "checksum": None,
             "input_size": [224, 224],
             "output_dim": 1024,
@@ -175,7 +207,7 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
         },
         "dinov2_giant": {
             "display_name": "DINOv2 Giant",
-            "description": "Best semantic embeddings (1536-dim, 1.1B params)",
+            "description": "Best semantic embeddings (1536-dim, 1.1B params) with registers",
             "file": "dinov2_giant.onnx",
             "size_mb": 4300,
             "vram_required_mb": 16384,
@@ -183,7 +215,7 @@ MODEL_REGISTRY: Dict[str, Dict[str, Dict[str, Any]]] = {
             "speed": "very_slow",
             "quality_score": 98,
             "speed_score": 10,
-            "url": "https://huggingface.co/facebook/dinov2-giant/resolve/main/model.onnx",
+            "url": "https://huggingface.co/onnx-community/dinov2-with-registers-giant/resolve/main/onnx/model.onnx",
             "checksum": None,
             "input_size": [224, 224],
             "output_dim": 1536,
@@ -289,6 +321,8 @@ FALLBACK_CHAINS: Dict[str, List[str]] = {
         "laion_aesthetic_v2",
         "hyper_iqa",
         "clip_aesthetic",
+        "clip_vit_base",
+        "swin_iqa",
         "nima",
         "nima_mobile"
     ],
@@ -314,22 +348,22 @@ FALLBACK_CHAINS: Dict[str, List[str]] = {
 # ==========================================
 DEFAULT_MODELS: Dict[str, Dict[str, str]] = {
     "low": {
-        "aesthetic": "nima_mobile",
+        "aesthetic": "swin_iqa",
         "embedding": "dinov2_small",
         "face_detection": "opencv"
     },
     "medium": {
-        "aesthetic": "nima",
+        "aesthetic": "clip_vit_base",
         "embedding": "dinov2_small",
         "face_detection": "mediapipe"
     },
     "high": {
-        "aesthetic": "laion_aesthetic_v2",
+        "aesthetic": "clip_aesthetic",
         "embedding": "dinov2_base",
         "face_detection": "yolov8s"
     },
     "ultra": {
-        "aesthetic": "laion_aesthetic_v2",
+        "aesthetic": "clip_aesthetic",
         "embedding": "dinov2_large",
         "face_detection": "yolov8m"
     }

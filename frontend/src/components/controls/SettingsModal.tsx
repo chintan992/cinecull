@@ -138,6 +138,7 @@ function ModelCard({
   const isDownloading = downloadProgress?.status === 'downloading';
   const isDisabled = !model.compatible && model.has_file;
   const isBuiltIn = !model.has_file;
+  const requiresConversion = model.tags.includes('requires_conversion');
 
   return (
     <div
@@ -177,6 +178,11 @@ function ModelCard({
             {model.size_mb}MB
           </span>
         )}
+        {requiresConversion && (
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            Requires Conversion
+          </span>
+        )}
       </div>
 
       {model.vram_required_mb > 0 && (
@@ -190,6 +196,13 @@ function ModelCard({
         <div className="flex items-center gap-1 text-[9px] text-reject-400 mb-2">
           <AlertTriangle size={9} />
           <span className="line-clamp-1">{model.message}</span>
+        </div>
+      )}
+
+      {requiresConversion && !model.downloaded && (
+        <div className="flex items-center gap-1 text-[9px] text-amber-400 mb-2">
+          <AlertTriangle size={9} />
+          <span>This model requires manual ONNX conversion from PyTorch</span>
         </div>
       )}
 
@@ -214,6 +227,13 @@ function ModelCard({
               className="flex-1 px-2 py-1.5 rounded-lg bg-chrome-700/50 hover:bg-chrome-700 text-[10px] font-medium text-chrome-200 transition-colors"
             >
               Select
+            </button>
+          ) : requiresConversion ? (
+            <button
+              disabled
+              className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-chrome-800/50 text-[10px] font-medium text-chrome-500 cursor-not-allowed"
+            >
+              Requires Conversion
             </button>
           ) : (
             <button

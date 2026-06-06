@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-06-05T19:03:06.172626",
+  "urls": {
+    "nima_mobile": null,
+    "nima": null,
+    "clip_aesthetic": "https://huggingface.co/onnx-community/clip-vit-large-patch14-ONNX/resolve/main/onnx/model.onnx",
+    "clip_vit_base": "https://huggingface.co/onnx-community/clip-vit-base-patch32-ONNX/resolve/main/onnx/model.onnx",
+    "swin_iqa": "https://huggingface.co/onnx-community/swin-tiny-patch4-window7-224-finetuned-image_quality-ONNX/resolve/main/onnx/model.onnx",
+    "laion_aesthetic_v2": null,
+    "hyper_iqa": null,
+    "musiq": null,
+    "q_align": null,
+    "dinov2_small": "https://huggingface.co/onnx-community/dinov2-small/resolve/main/onnx/model.onnx",
+    "dinov2_base": "https://huggingface.co/onnx-community/dinov2-base/resolve/main/onnx/model.onnx",
+    "dinov2_large": "https://huggingface.co/onnx-community/dinov2-large/resolve/main/onnx/model.onnx",
+    "dinov2_giant": "https://huggingface.co/onnx-community/dinov2-with-registers-giant/resolve/main/onnx/model.onnx",
+    "opencv": null,
+    "mediapipe": null,
+    "yolov8n": "https://github.com/ultralytics/assets/releases/download/v8.1.0/yolov8n.pt",
+    "yolov8s": "https://github.com/ultralytics/assets/releases/download/v8.1.0/yolov8s.pt",
+    "yolov8m": "https://github.com/ultralytics/assets/releases/download/v8.1.0/yolov8m.pt",
+    "yolov8l": "https://github.com/ultralytics/assets/releases/download/v8.1.0/yolov8l.pt"
+  }
+}

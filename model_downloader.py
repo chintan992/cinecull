@@ -171,8 +171,8 @@ class ModelDownloader:
 
         url = info.get("url")
         if not url:
-            print(f"[WARN] Model {model_id} has no download URL (built-in model)")
-            return True
+            print(f"[WARN] Model {model_id} has no download URL (requires manual ONNX conversion)")
+            return False
 
         filename = info["file"]
         dest_path = os.path.join(MODELS_DIR, filename)
